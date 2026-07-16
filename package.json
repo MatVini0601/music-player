@@ -11,7 +11,8 @@
     "publish": {
       "provider": "github",
       "owner": "MatVini0601",
-      "repo": "music-player"
+      "repo": "music-player",
+      "releaseType": "release"
     }
   },
   "scripts": {
