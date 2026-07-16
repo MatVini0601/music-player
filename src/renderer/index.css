@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Accent color as space-separated RGB, so Tailwind can apply alpha modifiers.
+     Overridden at runtime from the saved setting. Default: #1db954. */
+  --accent: 29 185 84;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3a3a3c;
+  border-radius: 9999px;
+}

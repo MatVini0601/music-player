@@ -1,0 +1,163 @@
+import { FolderPlus, RotateCcw, Trash2 } from 'lucide-react'
+import type { EqBand } from '../../shared/types'
+import { EqBandsEditor } from './EqBandsEditor'
+
+const ACCENT_PRESETS = [
+  '#1db954', // green
+  '#14b8a6', // teal
+  '#3b82f6', // blue
+  '#8b5cf6', // purple
+  '#ec4899', // pink
+  '#ef4444', // red
+  '#f97316', // orange
+  '#eab308' // yellow
+]
+
+interface SettingsViewProps {
+  eqBands: EqBand[]
+  onChangeEqBand: (bandIndex: number, patch: Partial<EqBand>) => void
+  onResetEq: () => void
+  libraryRoots: string[]
+  isScanning: boolean
+  onAddFolder: () => void
+  onRemoveFolder: (path: string) => void
+  accentColor: string
+  onChangeAccentColor: (color: string) => void
+}
+
+export function SettingsView({
+  eqBands,
+  onChangeEqBand,
+  onResetEq,
+  libraryRoots,
+  isScanning,
+  onAddFolder,
+  onRemoveFolder,
+  accentColor,
+  onChangeAccentColor
+}: SettingsViewProps) {
+  return (
+    <div className="h-full overflow-y-auto px-8 py-8">
+      <h1 className="text-2xl font-bold text-white">Settings</h1>
+
+      <div className="mt-4 flex flex-col divide-y divide-white/5">
+        <section className="py-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Equalizer
+            </h2>
+            <button
+              onClick={onResetEq}
+              title="Reset"
+              aria-label="Reset equalizer"
+              className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+            >
+              <RotateCcw size={14} />
+              Reset
+            </button>
+          </div>
+          <EqBandsEditor
+            bands={eqBands}
+            onChangeBand={onChangeEqBand}
+            className="w-full auto-cols-fr"
+          />
+        </section>
+
+        <section className="py-8">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Accent color
+          </h2>
+          <div className="flex items-center gap-3">
+            {ACCENT_PRESETS.map((color) => (
+              <button
+                key={color}
+                onClick={() => onChangeAccentColor(color)}
+                title={color}
+                aria-label={`Set accent color ${color}`}
+                className={`h-7 w-7 rounded-full transition-transform hover:scale-110 ${
+                  accentColor.toLowerCase() === color
+                    ? 'ring-2 ring-white ring-offset-2 ring-offset-surface'
+                    : ''
+                }`}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+            <label
+              title="Custom color"
+              className={`relative h-7 w-7 cursor-pointer overflow-hidden rounded-full transition-transform hover:scale-110 ${
+                ACCENT_PRESETS.includes(accentColor.toLowerCase())
+                  ? ''
+                  : 'ring-2 ring-white ring-offset-2 ring-offset-surface'
+              }`}
+              style={{
+                background: ACCENT_PRESETS.includes(accentColor.toLowerCase())
+                  ? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)'
+                  : accentColor
+              }}
+            >
+              <input
+                type="color"
+                value={accentColor}
+                onChange={(e) => onChangeAccentColor(e.target.value)}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                aria-label="Pick a custom accent color"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="py-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Library folders
+            </h2>
+            <button
+              onClick={onAddFolder}
+              disabled={isScanning}
+              className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-40"
+            >
+              <FolderPlus size={14} />
+              Add folder
+            </button>
+          </div>
+
+          {libraryRoots.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              No folders yet. Add a folder with MP3 or FLAC files to build your library.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {libraryRoots.map((path) => (
+                <div
+                  key={path}
+                  className="group -mx-3 flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-white/5"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-gray-300" title={path}>
+                    {path}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Remove "${path}" from the library?\n\nIts tracks will be removed from the library (the files stay on disk).`
+                        )
+                      ) {
+                        onRemoveFolder(path)
+                      }
+                    }}
+                    disabled={isScanning}
+                    title="Remove folder"
+                    aria-label={`Remove folder ${path}`}
+                    className="hidden flex-shrink-0 text-gray-500 transition-colors hover:text-red-400 disabled:opacity-40 group-hover:block"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
