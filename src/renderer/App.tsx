@@ -25,6 +25,7 @@ export default function App() {
     tracks,
     isScanning,
     scanProgress,
+    scanFailedPaths,
     libraryRoots,
     hasLibraryRoots,
     pickFolderAndScan,
@@ -189,6 +190,7 @@ export default function App() {
         isPlaying={player.isPlaying}
         isScanning={isScanning}
         scanLabel={scanLabel}
+        scanFailedPaths={scanFailedPaths}
         hasLibraryRoots={hasLibraryRoots}
         playlists={playlists}
         onPickFolder={handlePickFolderAndScan}
@@ -241,6 +243,7 @@ export default function App() {
         <QueuePanel
           queue={player.queue}
           currentIndex={player.currentIndex}
+          playOrder={player.playOrder}
           history={player.history}
           isOpen={rightPanel === 'queue'}
           onJumpTo={player.jumpTo}
@@ -254,12 +257,16 @@ export default function App() {
         currentTime={player.currentTime}
         duration={player.duration}
         volume={player.volume}
+        isShuffle={player.isShuffle}
+        repeatMode={player.repeatMode}
         onTogglePlayPause={player.togglePlayPause}
         onSeek={player.seek}
         onVolumeChange={player.setVolume}
         onToggleMute={player.toggleMute}
         onNext={player.next}
         onPrevious={player.previous}
+        onToggleShuffle={player.toggleShuffle}
+        onToggleRepeat={player.toggleRepeat}
         onCoverClick={() => toggleRightPanel('nowPlaying')}
         onQueueClick={() => toggleRightPanel('queue')}
         isQueueOpen={rightPanel === 'queue'}

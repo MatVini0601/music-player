@@ -4,6 +4,9 @@ import {
   Maximize2,
   Pause,
   Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
   SkipBack,
   SkipForward,
   Volume1,
@@ -11,6 +14,7 @@ import {
   VolumeX
 } from 'lucide-react'
 import type { Track } from '../../shared/types'
+import type { RepeatMode } from '../hooks/usePlayer'
 import { formatDuration } from '../utils/format'
 
 interface NowPlayingBarProps {
@@ -19,12 +23,16 @@ interface NowPlayingBarProps {
   currentTime: number
   duration: number
   volume: number
+  isShuffle: boolean
+  repeatMode: RepeatMode
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
   onVolumeChange: (volume: number) => void
   onToggleMute: () => void
   onNext: () => void
   onPrevious: () => void
+  onToggleShuffle: () => void
+  onToggleRepeat: () => void
   onCoverClick: () => void
   onQueueClick: () => void
   isQueueOpen: boolean
@@ -39,12 +47,16 @@ export function NowPlayingBar({
   currentTime,
   duration,
   volume,
+  isShuffle,
+  repeatMode,
   onTogglePlayPause,
   onSeek,
   onVolumeChange,
   onToggleMute,
   onNext,
   onPrevious,
+  onToggleShuffle,
+  onToggleRepeat,
   onCoverClick,
   onQueueClick,
   isQueueOpen,
@@ -74,6 +86,17 @@ export function NowPlayingBar({
       <div className="flex flex-1 flex-col items-center gap-1">
         <div className="flex items-center gap-4">
           <button
+            onClick={onToggleShuffle}
+            disabled={!track}
+            title={isShuffle ? 'Disable shuffle' : 'Enable shuffle'}
+            aria-label={isShuffle ? 'Disable shuffle' : 'Enable shuffle'}
+            className={`transition-colors disabled:opacity-30 ${
+              isShuffle ? 'text-accent' : 'text-gray-500 hover:text-white'
+            }`}
+          >
+            <Shuffle size={16} />
+          </button>
+          <button
             onClick={onPrevious}
             disabled={!track}
             className="text-gray-300 transition-colors hover:text-white disabled:opacity-30"
@@ -100,6 +123,23 @@ export function NowPlayingBar({
             aria-label="Next"
           >
             <SkipForward size={18} fill="currentColor" />
+          </button>
+          <button
+            onClick={onToggleRepeat}
+            disabled={!track}
+            title={
+              repeatMode === 'off'
+                ? 'Repeat all'
+                : repeatMode === 'all'
+                  ? 'Repeat one'
+                  : 'Disable repeat'
+            }
+            aria-label="Cycle repeat mode"
+            className={`transition-colors disabled:opacity-30 ${
+              repeatMode !== 'off' ? 'text-accent' : 'text-gray-500 hover:text-white'
+            }`}
+          >
+            {repeatMode === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
           </button>
         </div>
         <div className="flex w-full max-w-xl items-center gap-2 text-xs text-gray-500">

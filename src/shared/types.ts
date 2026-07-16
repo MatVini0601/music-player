@@ -23,6 +23,8 @@ export interface ScanResult {
   addedOrUpdated: number
   removed: number
   totalTracks: number
+  /** Directories that couldn't be read and files that couldn't be parsed — skipped, not fatal. */
+  failedPaths: string[]
 }
 
 export interface Playlist {

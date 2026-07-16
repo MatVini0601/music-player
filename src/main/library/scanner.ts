@@ -1,6 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { join, extname, sep } from 'node:path'
 import type { Database } from 'better-sqlite3'
 import { cachePicture } from './artCache'
 import { getMusicMetadata } from './musicMetadataLoader'
@@ -8,14 +8,22 @@ import type { ScanProgress, ScanResult } from '../../shared/types'
 
 const SUPPORTED_EXTENSIONS = new Set(['.mp3', '.flac'])
 
-async function walk(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
+async function walk(dir: string, unreadableDirs: string[]): Promise<string[]> {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch (error) {
+    console.warn(`Scan: cannot read directory ${dir}:`, error)
+    unreadableDirs.push(dir)
+    return []
+  }
+
   const files: string[] = []
 
   for (const entry of entries) {
     const fullPath = join(dir, entry.name)
     if (entry.isDirectory()) {
-      files.push(...(await walk(fullPath)))
+      files.push(...(await walk(fullPath, unreadableDirs)))
     } else if (SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
       files.push(fullPath)
     }
@@ -45,9 +53,12 @@ export async function scanLibrary(
   rootPaths: string[],
   onProgress: (progress: ScanProgress) => void
 ): Promise<ScanResult> {
+  const unreadableDirs: string[] = []
+  const failedFiles: string[] = []
+
   const allFiles: string[] = []
   for (const root of rootPaths) {
-    allFiles.push(...(await walk(root)))
+    allFiles.push(...(await walk(root, unreadableDirs)))
   }
 
   const upsertTrack = db.prepare(`
@@ -82,60 +93,69 @@ export async function scanLibrary(
     const filePath = allFiles[i]
     onProgress({ scanned: i + 1, total: allFiles.length, currentFile: filePath })
 
-    const fileStat = await stat(filePath)
-    const mtimeMs = Math.floor(fileStat.mtimeMs)
+    // A single unreadable or corrupt file must not abort the whole scan — skip it and
+    // report it in the result instead.
+    try {
+      const fileStat = await stat(filePath)
+      const mtimeMs = Math.floor(fileStat.mtimeMs)
 
-    const existing = getExisting.get(filePath) as { id: number; file_mtime_ms: number } | undefined
-    if (existing && existing.file_mtime_ms === mtimeMs) {
-      continue
+      const existing = getExisting.get(filePath) as
+        | { id: number; file_mtime_ms: number }
+        | undefined
+      if (existing && existing.file_mtime_ms === mtimeMs) {
+        continue
+      }
+
+      const { parseFile } = await getMusicMetadata()
+      const metadata = await parseFile(filePath)
+      const common = metadata.common
+      const format = extname(filePath).toLowerCase() === '.flac' ? 'flac' : 'mp3'
+      const albumId = findOrCreateAlbum(db, common.album ?? '', common.albumartist ?? common.artist ?? '')
+
+      const trackId = existing
+        ? existing.id
+        : Number(
+            upsertTrack.run({
+              filePath,
+              title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
+              artist: common.artist ?? '',
+              album: common.album ?? '',
+              albumArtist: common.albumartist ?? common.artist ?? '',
+              trackNo: common.track?.no ?? null,
+              durationSeconds: metadata.format.duration ?? 0,
+              format,
+              albumId,
+              fileMtimeMs: mtimeMs
+            }).lastInsertRowid
+          )
+
+      if (existing) {
+        upsertTrack.run({
+          filePath,
+          title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
+          artist: common.artist ?? '',
+          album: common.album ?? '',
+          albumArtist: common.albumartist ?? common.artist ?? '',
+          trackNo: common.track?.no ?? null,
+          durationSeconds: metadata.format.duration ?? 0,
+          format,
+          albumId,
+          fileMtimeMs: mtimeMs
+        })
+      }
+
+      const picture = common.picture?.[0]
+      if (picture) {
+        clearArtForTrack.run(trackId)
+        const imagePath = cachePicture(picture)
+        upsertArt.run(trackId, imagePath)
+      }
+
+      addedOrUpdated++
+    } catch (error) {
+      console.warn(`Scan: failed to process ${filePath}:`, error)
+      failedFiles.push(filePath)
     }
-
-    const { parseFile } = await getMusicMetadata()
-    const metadata = await parseFile(filePath)
-    const common = metadata.common
-    const format = extname(filePath).toLowerCase() === '.flac' ? 'flac' : 'mp3'
-    const albumId = findOrCreateAlbum(db, common.album ?? '', common.albumartist ?? common.artist ?? '')
-
-    const trackId = existing
-      ? existing.id
-      : Number(
-          upsertTrack.run({
-            filePath,
-            title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-            artist: common.artist ?? '',
-            album: common.album ?? '',
-            albumArtist: common.albumartist ?? common.artist ?? '',
-            trackNo: common.track?.no ?? null,
-            durationSeconds: metadata.format.duration ?? 0,
-            format,
-            albumId,
-            fileMtimeMs: mtimeMs
-          }).lastInsertRowid
-        )
-
-    if (existing) {
-      upsertTrack.run({
-        filePath,
-        title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-        artist: common.artist ?? '',
-        album: common.album ?? '',
-        albumArtist: common.albumartist ?? common.artist ?? '',
-        trackNo: common.track?.no ?? null,
-        durationSeconds: metadata.format.duration ?? 0,
-        format,
-        albumId,
-        fileMtimeMs: mtimeMs
-      })
-    }
-
-    const picture = common.picture?.[0]
-    if (picture) {
-      clearArtForTrack.run(trackId)
-      const imagePath = cachePicture(picture)
-      upsertArt.run(trackId, imagePath)
-    }
-
-    addedOrUpdated++
   }
 
   const allTracks = db.prepare('SELECT id, file_path FROM tracks').all() as {
@@ -146,7 +166,13 @@ export async function scanLibrary(
   const deleteTrack = db.prepare('DELETE FROM tracks WHERE id = ?')
   let removed = 0
 
+  // Tracks under a directory we couldn't read (unplugged drive, permission denied) look
+  // missing to existsSync but may well still exist — deleting them would silently wipe
+  // that part of the library. Leave them alone until the directory is readable again.
+  const unreadablePrefixes = unreadableDirs.map((dir) => dir.replace(/[\\/]+$/, '') + sep)
+
   for (const track of allTracks) {
+    if (unreadablePrefixes.some((prefix) => track.file_path.startsWith(prefix))) continue
     if (!existsSync(track.file_path)) {
       deleteTrack.run(track.id)
       removed++
@@ -164,5 +190,5 @@ export async function scanLibrary(
     db.prepare('SELECT COUNT(*) as count FROM tracks').get() as { count: number }
   ).count
 
-  return { addedOrUpdated, removed, totalTracks }
+  return { addedOrUpdated, removed, totalTracks, failedPaths: [...unreadableDirs, ...failedFiles] }
 }

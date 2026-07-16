@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Track } from '../../shared/types'
 import { createDefaultEqBands, type EqBand } from '../utils/eq'
+
+export type RepeatMode = 'off' | 'all' | 'one'
 
 export interface PlayerState {
   queue: Track[]
@@ -13,6 +15,10 @@ export interface PlayerState {
   volume: number
   eqBands: EqBand[]
   trackEqBands: EqBand[] | null
+  isShuffle: boolean
+  repeatMode: RepeatMode
+  /** Queue indices in the order they will actually play (shuffled when shuffle is on). */
+  playOrder: number[]
 }
 
 export interface PlayerControls {
@@ -30,6 +36,21 @@ export interface PlayerControls {
   clearTrackEq: (trackId: number) => void
   next: () => void
   previous: () => void
+  toggleShuffle: () => void
+  toggleRepeat: () => void
+}
+
+/** A permutation of queue indices starting with firstIndex (the playing track keeps playing). */
+function buildShuffleOrder(length: number, firstIndex: number): number[] {
+  const rest: number[] = []
+  for (let i = 0; i < length; i++) {
+    if (i !== firstIndex) rest.push(i)
+  }
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[rest[i], rest[j]] = [rest[j], rest[i]]
+  }
+  return firstIndex >= 0 && firstIndex < length ? [firstIndex, ...rest] : rest
 }
 
 export function usePlayer(): PlayerState & PlayerControls {
@@ -47,8 +68,18 @@ export function usePlayer(): PlayerState & PlayerControls {
   const audioContextRef = useRef<AudioContext | null>(null)
   const [history, setHistory] = useState<Track[]>([])
   const previousTrackRef = useRef<Track | null>(null)
+  const [isShuffle, setIsShuffle] = useState(false)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
+  // When shuffle is on, playback follows this permutation of queue indices instead of
+  // sequential order. It always contains every queue index exactly once.
+  const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
 
   const currentTrack = currentIndex >= 0 ? (queue[currentIndex] ?? null) : null
+
+  const playOrder = useMemo(
+    () => (isShuffle && shuffleOrder.length > 0 ? shuffleOrder : queue.map((_, i) => i)),
+    [isShuffle, shuffleOrder, queue]
+  )
 
   // Tracks the actual chronological play order (not queue position), so jumping around the
   // queue doesn't misrepresent skipped-over tracks as "history".
@@ -137,24 +168,21 @@ export function usePlayer(): PlayerState & PlayerControls {
     const audio = audioRef.current
     const onTimeUpdate = (): void => setCurrentTime(audio.currentTime)
     const onLoadedMetadata = (): void => setDuration(audio.duration)
-    const onEnded = (): void => setCurrentIndex((i) => (i + 1 < queue.length ? i + 1 : i))
     const onPlay = (): void => setIsPlaying(true)
     const onPause = (): void => setIsPlaying(false)
 
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
-    audio.addEventListener('ended', onEnded)
     audio.addEventListener('play', onPlay)
     audio.addEventListener('pause', onPause)
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
-      audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('play', onPlay)
       audio.removeEventListener('pause', onPause)
     }
-  }, [queue.length])
+  }, [])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -173,27 +201,50 @@ export function usePlayer(): PlayerState & PlayerControls {
     })
   }, [])
 
-  const playQueue = useCallback((tracks: Track[], startIndex: number) => {
-    previousTrackRef.current = null
-    setHistory([])
-    setQueue(tracks)
-    setCurrentIndex(startIndex)
-  }, [])
+  const playQueue = useCallback(
+    (tracks: Track[], startIndex: number) => {
+      previousTrackRef.current = null
+      setHistory([])
+      setQueue(tracks)
+      setCurrentIndex(startIndex)
+      if (isShuffle) setShuffleOrder(buildShuffleOrder(tracks.length, startIndex))
+    },
+    [isShuffle]
+  )
 
   const addToQueue = useCallback(
     (track: Track) => {
       if (queue.length === 0) {
         setQueue([track])
         setCurrentIndex(0)
-      } else {
-        setQueue((prev) => [...prev, track])
+        if (isShuffle) setShuffleOrder([0])
+        return
+      }
+
+      const newIndex = queue.length
+      setQueue((prev) => [...prev, track])
+      if (isShuffle) {
+        // Drop the new track somewhere in the not-yet-played part of the shuffle order.
+        setShuffleOrder((order) => {
+          const currentPos = Math.max(order.indexOf(currentIndex), 0)
+          const insertAt = currentPos + 1 + Math.floor(Math.random() * (order.length - currentPos))
+          const next = [...order]
+          next.splice(insertAt, 0, newIndex)
+          return next
+        })
       }
     },
-    [queue.length]
+    [queue.length, isShuffle, currentIndex]
   )
 
   const removeFromQueue = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index))
+    // Queue indices above the removed one shift down; keep the pointer and shuffle
+    // order aimed at the same tracks.
+    setCurrentIndex((i) => (index < i ? i - 1 : i))
+    setShuffleOrder((order) =>
+      order.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
+    )
   }, [])
 
   const jumpTo = useCallback(
@@ -256,12 +307,62 @@ export function usePlayer(): PlayerState & PlayerControls {
   )
 
   const next = useCallback(() => {
-    setCurrentIndex((i) => (i + 1 < queue.length ? i + 1 : i))
-  }, [queue.length])
+    setCurrentIndex((i) => {
+      if (queue.length === 0) return i
+      if (isShuffle && shuffleOrder.length > 0) {
+        const pos = shuffleOrder.indexOf(i)
+        if (pos === -1) return shuffleOrder[0]
+        if (pos + 1 < shuffleOrder.length) return shuffleOrder[pos + 1]
+        return repeatMode === 'all' ? shuffleOrder[0] : i
+      }
+      if (i + 1 < queue.length) return i + 1
+      return repeatMode === 'all' ? 0 : i
+    })
+  }, [queue.length, isShuffle, shuffleOrder, repeatMode])
 
   const previous = useCallback(() => {
-    setCurrentIndex((i) => (i > 0 ? i - 1 : i))
+    setCurrentIndex((i) => {
+      if (queue.length === 0) return i
+      if (isShuffle && shuffleOrder.length > 0) {
+        const pos = shuffleOrder.indexOf(i)
+        if (pos > 0) return shuffleOrder[pos - 1]
+        return repeatMode === 'all' ? shuffleOrder[shuffleOrder.length - 1] : i
+      }
+      if (i > 0) return i - 1
+      return repeatMode === 'all' ? queue.length - 1 : i
+    })
+  }, [queue.length, isShuffle, shuffleOrder, repeatMode])
+
+  const toggleShuffle = useCallback(() => {
+    if (isShuffle) {
+      setIsShuffle(false)
+      setShuffleOrder([])
+    } else {
+      setIsShuffle(true)
+      setShuffleOrder(buildShuffleOrder(queue.length, currentIndex))
+    }
+  }, [isShuffle, queue.length, currentIndex])
+
+  const toggleRepeat = useCallback(() => {
+    setRepeatMode((mode) => (mode === 'off' ? 'all' : mode === 'all' ? 'one' : 'off'))
   }, [])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    const onEnded = (): void => {
+      // Cases where the queue index doesn't change (repeat-one, or repeat-all with a
+      // single track) never re-trigger the src effect, so restart the audio directly.
+      if (repeatMode === 'one' || (repeatMode === 'all' && queue.length === 1)) {
+        audio.currentTime = 0
+        audio.play().catch(() => {})
+        return
+      }
+      next()
+    }
+
+    audio.addEventListener('ended', onEnded)
+    return () => audio.removeEventListener('ended', onEnded)
+  }, [repeatMode, queue.length, next])
 
   return {
     queue,
@@ -274,6 +375,9 @@ export function usePlayer(): PlayerState & PlayerControls {
     volume,
     eqBands,
     trackEqBands,
+    isShuffle,
+    repeatMode,
+    playOrder,
     playQueue,
     addToQueue,
     removeFromQueue,
@@ -287,6 +391,8 @@ export function usePlayer(): PlayerState & PlayerControls {
     setTrackEq,
     clearTrackEq,
     next,
-    previous
+    previous,
+    toggleShuffle,
+    toggleRepeat
   }
 }

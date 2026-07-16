@@ -6,6 +6,7 @@ import { formatDuration } from '../utils/format'
 interface QueuePanelProps {
   queue: Track[]
   currentIndex: number
+  playOrder: number[]
   history: Track[]
   isOpen: boolean
   onJumpTo: (index: number) => void
@@ -64,6 +65,7 @@ function QueueRow({ track, isCurrent, onClick, onRemove }: QueueRowProps) {
 export function QueuePanel({
   queue,
   currentIndex,
+  playOrder,
   history,
   isOpen,
   onJumpTo,
@@ -71,7 +73,10 @@ export function QueuePanel({
   onClose
 }: QueuePanelProps) {
   const currentTrack = currentIndex >= 0 ? (queue[currentIndex] ?? null) : null
-  const upNext = currentIndex >= 0 ? queue.slice(currentIndex + 1) : queue
+  // Everything after the current track in actual play order (shuffled when shuffle is on),
+  // as queue indices so jump/remove still target the right track.
+  const currentPos = playOrder.indexOf(currentIndex)
+  const upNextIndices = currentPos >= 0 ? playOrder.slice(currentPos + 1) : playOrder
   const scrollRef = useRef<HTMLDivElement>(null)
   const nowPlayingRef = useRef<HTMLDivElement>(null)
 
@@ -108,7 +113,7 @@ export function QueuePanel({
         </button>
       </div>
 
-      {!currentTrack && history.length === 0 && upNext.length === 0 ? (
+      {!currentTrack && history.length === 0 && upNextIndices.length === 0 ? (
         <div className="mt-6 flex w-64 flex-1 items-center justify-center text-sm text-gray-500">
           Queue is empty
         </div>
@@ -137,12 +142,13 @@ export function QueuePanel({
             </div>
           )}
 
-          {upNext.length > 0 && (
+          {upNextIndices.length > 0 && (
             <>
               <div className="mb-1 mt-4 text-xs text-gray-500">Up next</div>
               <div className="flex flex-col gap-0.5">
-                {upNext.map((track, offset) => {
-                  const index = currentIndex + 1 + offset
+                {upNextIndices.map((index) => {
+                  const track = queue[index]
+                  if (!track) return null
                   return (
                     <QueueRow
                       key={`${track.id}-${index}`}

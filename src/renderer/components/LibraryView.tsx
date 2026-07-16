@@ -13,6 +13,7 @@ interface LibraryViewProps {
   isPlaying: boolean
   isScanning: boolean
   scanLabel: string | null
+  scanFailedPaths: string[]
   hasLibraryRoots: boolean
   playlists: Playlist[]
   onPickFolder: () => void
@@ -31,6 +32,7 @@ export function LibraryView({
   isPlaying,
   isScanning,
   scanLabel,
+  scanFailedPaths,
   hasLibraryRoots,
   playlists,
   onPickFolder,
@@ -63,6 +65,18 @@ export function LibraryView({
           {tracks.length > 0 && <SearchInput value={searchQuery} onChange={setSearchQuery} />}
           {isScanning && (
             <span className="text-xs text-gray-500">{scanLabel ?? 'Scanning…'}</span>
+          )}
+          {!isScanning && scanFailedPaths.length > 0 && (
+            <span
+              className="cursor-help text-xs text-amber-500"
+              title={
+                scanFailedPaths.slice(0, 20).join('\n') +
+                (scanFailedPaths.length > 20 ? `\n…and ${scanFailedPaths.length - 20} more` : '')
+              }
+            >
+              {scanFailedPaths.length} {scanFailedPaths.length === 1 ? 'item' : 'items'} couldn't be
+              read
+            </span>
           )}
           {hasLibraryRoots && (
             <button

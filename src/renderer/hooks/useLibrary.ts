@@ -5,6 +5,7 @@ export function useLibrary() {
   const [tracks, setTracks] = useState<Track[]>([])
   const [isScanning, setIsScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
+  const [scanFailedPaths, setScanFailedPaths] = useState<string[]>([])
   const [libraryRoots, setLibraryRoots] = useState<string[]>([])
 
   const refreshTracks = useCallback(async () => {
@@ -28,8 +29,10 @@ export function useLibrary() {
   const runScan = useCallback(async () => {
     setIsScanning(true)
     setScanProgress(null)
+    setScanFailedPaths([])
     try {
-      await window.api.scanLibrary()
+      const result = await window.api.scanLibrary()
+      setScanFailedPaths(result.failedPaths)
       await refreshTracks()
     } finally {
       setIsScanning(false)
@@ -60,6 +63,7 @@ export function useLibrary() {
     tracks,
     isScanning,
     scanProgress,
+    scanFailedPaths,
     libraryRoots,
     hasLibraryRoots: libraryRoots.length > 0,
     pickFolderAndScan,
