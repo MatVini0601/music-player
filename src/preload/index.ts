@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { EqBand, LibraryApi, ScanProgress } from '../shared/types'
+import type { EqBand, LibraryApi, ScanProgress, UpdateEvent } from '../shared/types'
 
 const api: LibraryApi = {
   pickFolder: () => ipcRenderer.invoke('library:pickFolder'),
@@ -55,7 +55,17 @@ const api: LibraryApi = {
   getTrackMetadata: (trackId: number) => ipcRenderer.invoke('library:getTrackMetadata', trackId),
   recordPlay: (trackId: number) => ipcRenderer.invoke('history:recordPlay', trackId),
   getRecentAlbums: () => ipcRenderer.invoke('library:getRecentAlbums'),
-  getRecentTracks: () => ipcRenderer.invoke('library:getRecentTracks')
+  getRecentTracks: () => ipcRenderer.invoke('library:getRecentTracks'),
+  getAppVersion: () => ipcRenderer.invoke('updates:getAppVersion'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  onUpdateEvent: (callback: (event: UpdateEvent) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, update: UpdateEvent): void =>
+      callback(update)
+    ipcRenderer.on('updates:event', listener)
+    return () => ipcRenderer.removeListener('updates:event', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

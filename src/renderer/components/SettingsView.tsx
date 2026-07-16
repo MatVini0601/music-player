@@ -1,5 +1,6 @@
-import { FolderPlus, RotateCcw, Trash2 } from 'lucide-react'
+import { FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import type { EqBand } from '../../shared/types'
+import type { UpdateStatus } from '../hooks/useAppUpdates'
 import { EqBandsEditor } from './EqBandsEditor'
 
 const ACCENT_PRESETS = [
@@ -23,6 +24,28 @@ interface SettingsViewProps {
   onRemoveFolder: (path: string) => void
   accentColor: string
   onChangeAccentColor: (color: string) => void
+  appVersion: string
+  updateStatus: UpdateStatus
+  onCheckForUpdates: () => void
+}
+
+function updateStatusText(status: UpdateStatus): string {
+  switch (status.phase) {
+    case 'idle':
+      return ''
+    case 'checking':
+      return 'Checking for updates…'
+    case 'upToDate':
+      return "You're on the latest version."
+    case 'available':
+      return `Version ${status.version} is available.`
+    case 'downloading':
+      return `Downloading update… ${Math.round(status.percent)}%`
+    case 'downloaded':
+      return `Version ${status.version} downloaded — restart the app to apply it.`
+    case 'error':
+      return `Update check failed: ${status.message}`
+  }
 }
 
 export function SettingsView({
@@ -34,8 +57,13 @@ export function SettingsView({
   onAddFolder,
   onRemoveFolder,
   accentColor,
-  onChangeAccentColor
+  onChangeAccentColor,
+  appVersion,
+  updateStatus,
+  onCheckForUpdates
 }: SettingsViewProps) {
+  const updateStatusLine = updateStatusText(updateStatus)
+  const isUpdateBusy = updateStatus.phase === 'checking' || updateStatus.phase === 'downloading'
   return (
     <div className="h-full overflow-y-auto px-8 py-8">
       <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -155,6 +183,30 @@ export function SettingsView({
                 </div>
               ))}
             </div>
+          )}
+        </section>
+
+        <section className="py-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">About</h2>
+            <button
+              onClick={onCheckForUpdates}
+              disabled={isUpdateBusy}
+              className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-40"
+            >
+              <RefreshCw size={14} className={isUpdateBusy ? 'animate-spin' : ''} />
+              Check for updates
+            </button>
+          </div>
+          <p className="text-sm text-gray-300">Music Player {appVersion ? `v${appVersion}` : ''}</p>
+          {updateStatusLine && (
+            <p
+              className={`mt-1 text-sm ${
+                updateStatus.phase === 'error' ? 'text-amber-500' : 'text-gray-500'
+              }`}
+            >
+              {updateStatusLine}
+            </p>
           )}
         </section>
       </div>

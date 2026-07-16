@@ -5,6 +5,8 @@ import { usePlaylists } from './hooks/usePlaylists'
 import { useAlbums } from './hooks/useAlbums'
 import { useHomeData } from './hooks/useHomeData'
 import { useAccentColor } from './hooks/useAccentColor'
+import { useAppUpdates } from './hooks/useAppUpdates'
+import { UpdateModal } from './components/UpdateModal'
 import { HomeView } from './components/HomeView'
 import { LibraryView } from './components/LibraryView'
 import { PlaylistView } from './components/PlaylistView'
@@ -38,6 +40,7 @@ export default function App() {
   const { albums, refresh: refreshAlbums } = useAlbums()
   const { recentAlbums, recentTracks, refresh: refreshHomeData } = useHomeData()
   const { accentColor, setAccentColor } = useAccentColor()
+  const updates = useAppUpdates()
   const [selectedView, setSelectedView] = useState<SelectedView>({ type: 'home' })
   const [rightPanel, setRightPanel] = useState<'nowPlaying' | 'queue' | null>(null)
   const [isLyricsViewOpen, setIsLyricsViewOpen] = useState(false)
@@ -139,6 +142,9 @@ export default function App() {
           onRemoveFolder={handleRemoveFolder}
           accentColor={accentColor}
           onChangeAccentColor={setAccentColor}
+          appVersion={updates.appVersion}
+          updateStatus={updates.status}
+          onCheckForUpdates={updates.checkForUpdates}
         />
       )
     }
@@ -294,6 +300,14 @@ export default function App() {
           onSetTrackEq={player.setTrackEq}
           onClearTrackEq={player.clearTrackEq}
           onClose={() => setEqTrack(null)}
+        />
+      )}
+      {updates.showPopup && (
+        <UpdateModal
+          status={updates.status}
+          onDownload={updates.downloadUpdate}
+          onInstall={updates.installUpdate}
+          onClose={updates.dismissPopup}
         />
       )}
     </div>

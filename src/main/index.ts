@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
-import { autoUpdater } from 'electron-updater'
 import { join } from 'node:path'
+import { registerUpdateHandlers, checkForUpdatesOnStartup } from './updates'
 import { getDb } from './db/db'
 import { scanLibrary } from './library/scanner'
 import { rowsToTracks, TRACK_COLUMNS_SQL, TRACK_JOINS_SQL, type TrackRow } from './library/trackMapper'
@@ -215,15 +215,9 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   registerMediaProtocolHandler()
   registerIpcHandlers()
+  registerUpdateHandlers(() => mainWindow)
   createWindow()
-
-  // Checks the GitHub Releases feed, downloads a newer version in the background,
-  // notifies the user, and installs it when the app quits. Dev builds are skipped.
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-      console.warn('Update check failed:', error)
-    })
-  }
+  checkForUpdatesOnStartup()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

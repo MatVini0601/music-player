@@ -81,6 +81,13 @@ export interface TrackMetadata {
   filePath: string
 }
 
+export type UpdateEvent =
+  | { type: 'available'; version: string }
+  | { type: 'upToDate' }
+  | { type: 'downloading'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string }
+
 export interface LibraryApi {
   pickFolder(): Promise<string | null>
   getLibraryRoots(): Promise<string[]>
@@ -123,4 +130,9 @@ export interface LibraryApi {
   recordPlay(trackId: number): Promise<void>
   getRecentAlbums(): Promise<Album[]>
   getRecentTracks(): Promise<Track[]>
+  getAppVersion(): Promise<string>
+  checkForUpdates(): Promise<void>
+  downloadUpdate(): Promise<void>
+  installUpdate(): Promise<void>
+  onUpdateEvent(callback: (event: UpdateEvent) => void): () => void
 }
