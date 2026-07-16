@@ -94,6 +94,8 @@ export function registerPlaylistHandlers(db: Database): void {
     return tracks.map((track, i) => ({ ...track, addedAt: rows[i].playlist_added_at }))
   })
 
+  // Duplicates are intentionally not allowed (PK on playlist_id+track_id);
+  // re-adding an existing track is a silent no-op.
   ipcMain.handle('playlist:addTrack', (_event, playlistId: number, trackId: number): void => {
     const { maxPosition } = db
       .prepare('SELECT MAX(position) as maxPosition FROM playlist_tracks WHERE playlist_id = ?')

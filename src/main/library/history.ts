@@ -15,10 +15,8 @@ const RECENT_TRACKS_LIMIT = 20
 
 export function registerHistoryHandlers(db: Database): void {
   ipcMain.handle('history:recordPlay', (_event, trackId: number): void => {
-    db.prepare('INSERT INTO play_history (track_id, played_at) VALUES (?, ?)').run(
-      trackId,
-      Date.now()
-    )
+    // played_at defaults to datetime('now'), consistent with the other tables.
+    db.prepare('INSERT INTO play_history (track_id) VALUES (?)').run(trackId)
   })
 
   ipcMain.handle('library:getRecentAlbums', async (): Promise<Album[]> => {

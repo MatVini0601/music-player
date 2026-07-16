@@ -81,6 +81,11 @@ export interface TrackMetadata {
   filePath: string
 }
 
+export interface LibrarySort {
+  key: 'title' | 'album' | 'added' | 'duration'
+  direction: 'asc' | 'desc'
+}
+
 export type UpdateEvent =
   | { type: 'available'; version: string }
   | { type: 'upToDate' }
@@ -118,6 +123,8 @@ export interface LibraryApi {
   setAccentColor(color: string): Promise<void>
   getSidebarCollapsed(): Promise<boolean>
   setSidebarCollapsed(collapsed: boolean): Promise<void>
+  getLibrarySort(): Promise<LibrarySort | null>
+  setLibrarySort(sort: LibrarySort | null): Promise<void>
   getLyrics(trackId: number): Promise<LyricsResult | null>
   setLyrics(trackId: number, text: string): Promise<LyricsResult>
   clearLyrics(trackId: number): Promise<void>

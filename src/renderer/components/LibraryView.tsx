@@ -50,7 +50,9 @@ export function LibraryView({
   onCreatePlaylistAndAddTrack
 }: LibraryViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const { sortedTracks, sortKey, sortDirection, toggleSort } = useTrackSort(tracks)
+  const { sortedTracks, sortKey, sortDirection, toggleSort } = useTrackSort(tracks, {
+    persisted: true
+  })
 
   // Windowed rendering: with libraries in the thousands, only the rows near the
   // viewport are mounted; everything else is a single sized spacer.

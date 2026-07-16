@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { EqBand, LibraryApi, ScanProgress, UpdateEvent } from '../shared/types'
+import type { EqBand, LibraryApi, LibrarySort, ScanProgress, UpdateEvent } from '../shared/types'
 
 const api: LibraryApi = {
   pickFolder: () => ipcRenderer.invoke('library:pickFolder'),
@@ -42,6 +42,8 @@ const api: LibraryApi = {
   getSidebarCollapsed: () => ipcRenderer.invoke('settings:getSidebarCollapsed'),
   setSidebarCollapsed: (collapsed: boolean) =>
     ipcRenderer.invoke('settings:setSidebarCollapsed', collapsed),
+  getLibrarySort: () => ipcRenderer.invoke('settings:getLibrarySort'),
+  setLibrarySort: (sort: LibrarySort | null) => ipcRenderer.invoke('settings:setLibrarySort', sort),
   getLyrics: (trackId: number) => ipcRenderer.invoke('lyrics:getForTrack', trackId),
   setLyrics: (trackId: number, text: string) =>
     ipcRenderer.invoke('lyrics:setForTrack', trackId, text),

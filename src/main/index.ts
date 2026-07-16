@@ -10,7 +10,7 @@ import { registerLyricsHandlers } from './library/lyrics'
 import { registerMetadataHandlers } from './library/metadata'
 import { registerHistoryHandlers } from './library/history'
 import { registerMediaProtocolPrivileges, registerMediaProtocolHandler } from './mediaProtocol'
-import type { EqBand, Track, ScanResult } from '../shared/types'
+import type { EqBand, LibrarySort, Track, ScanResult } from '../shared/types'
 
 registerMediaProtocolPrivileges()
 
@@ -103,18 +103,41 @@ function registerIpcHandlers(): void {
     return rowsToTracks(rows)
   })
 
-  ipcMain.handle('settings:getVolume', (): number => {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'volume'").get() as
-      | { value: string }
-      | undefined
-    return row ? Number(row.value) : 1
-  })
+  // Every simple setting is one row in the settings table; a registration declares
+  // only its storage key, (de)serialization, and fallback. Channel names are unchanged.
+  // A fromStored that throws falls back; a toStored returning null deletes the row.
+  function registerSetting<T>(
+    channel: string,
+    key: string,
+    spec: {
+      fromStored: (stored: string) => T
+      toStored: (value: T) => string | null
+      fallback: () => T
+    }
+  ): void {
+    ipcMain.handle(`settings:get${channel}`, (): T => {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+        | { value: string }
+        | undefined
+      if (!row) return spec.fallback()
+      try {
+        return spec.fromStored(row.value)
+      } catch {
+        return spec.fallback()
+      }
+    })
 
-  ipcMain.handle('settings:setVolume', (_event, volume: number): void => {
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('volume', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run(String(volume))
-  })
+    ipcMain.handle(`settings:set${channel}`, (_event, value: T): void => {
+      const stored = spec.toStored(value)
+      if (stored === null) {
+        db.prepare('DELETE FROM settings WHERE key = ?').run(key)
+        return
+      }
+      db.prepare(
+        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+      ).run(key, stored)
+    })
+  }
 
   const defaultEqBands = (): EqBand[] =>
     [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].map((frequency) => ({
@@ -134,24 +157,55 @@ function registerIpcHandlers(): void {
         typeof b.gain === 'number'
     )
 
-  ipcMain.handle('settings:getEqBands', (): EqBand[] => {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'eqBands'").get() as
-      | { value: string }
-      | undefined
-    if (!row) return defaultEqBands()
-    try {
-      const parsed = JSON.parse(row.value)
-      if (isValidEqBands(parsed)) return parsed
-    } catch {
-      // fall through to default
-    }
-    return defaultEqBands()
+  const isValidLibrarySort = (value: unknown): value is LibrarySort =>
+    !!value &&
+    typeof value === 'object' &&
+    ['title', 'album', 'added', 'duration'].includes((value as LibrarySort).key) &&
+    ['asc', 'desc'].includes((value as LibrarySort).direction)
+
+  registerSetting<number>('Volume', 'volume', {
+    fromStored: (stored) => {
+      const volume = Number(stored)
+      if (Number.isNaN(volume)) throw new Error('invalid volume')
+      return volume
+    },
+    toStored: String,
+    fallback: () => 1
   })
 
-  ipcMain.handle('settings:setEqBands', (_event, bands: EqBand[]): void => {
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('eqBands', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run(JSON.stringify(bands))
+  registerSetting<EqBand[]>('EqBands', 'eqBands', {
+    fromStored: (stored) => {
+      const parsed = JSON.parse(stored)
+      if (!isValidEqBands(parsed)) throw new Error('invalid eq bands')
+      return parsed
+    },
+    toStored: (bands) => JSON.stringify(bands),
+    fallback: defaultEqBands
+  })
+
+  registerSetting<string>('AccentColor', 'accentColor', {
+    fromStored: (stored) => stored,
+    toStored: (color) => color,
+    fallback: () => '#1db954'
+  })
+
+  registerSetting<boolean>('SidebarCollapsed', 'sidebarCollapsed', {
+    fromStored: (stored) => stored === '1',
+    toStored: (collapsed) => (collapsed ? '1' : '0'),
+    fallback: () => false
+  })
+
+  registerSetting<LibrarySort | null>('LibrarySort', 'librarySort', {
+    fromStored: (stored) => {
+      const parsed = JSON.parse(stored)
+      if (!isValidLibrarySort(parsed)) throw new Error('invalid library sort')
+      return parsed
+    },
+    toStored: (sort) =>
+      isValidLibrarySort(sort)
+        ? JSON.stringify({ key: sort.key, direction: sort.direction })
+        : null,
+    fallback: () => null
   })
 
   ipcMain.handle('trackEq:get', (_event, trackId: number): EqBand[] | null => {
@@ -176,32 +230,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('trackEq:clear', (_event, trackId: number): void => {
     db.prepare('DELETE FROM track_eq WHERE track_id = ?').run(trackId)
-  })
-
-  ipcMain.handle('settings:getAccentColor', (): string => {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'accentColor'").get() as
-      | { value: string }
-      | undefined
-    return row?.value ?? '#1db954'
-  })
-
-  ipcMain.handle('settings:setAccentColor', (_event, color: string): void => {
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('accentColor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run(color)
-  })
-
-  ipcMain.handle('settings:getSidebarCollapsed', (): boolean => {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'sidebarCollapsed'").get() as
-      | { value: string }
-      | undefined
-    return row?.value === '1'
-  })
-
-  ipcMain.handle('settings:setSidebarCollapsed', (_event, collapsed: boolean): void => {
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('sidebarCollapsed', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run(collapsed ? '1' : '0')
   })
 
   registerPlaylistHandlers(db)

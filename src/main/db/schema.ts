@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS playlists (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- The composite PK deliberately forbids the same track appearing twice in a playlist;
+-- add/remove/reorder all identify entries by track_id and rely on this.
 CREATE TABLE IF NOT EXISTS playlist_tracks (
   playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
   track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
@@ -75,7 +77,7 @@ CREATE TABLE IF NOT EXISTS track_eq (
 CREATE TABLE IF NOT EXISTS play_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
-  played_at INTEGER NOT NULL
+  played_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_play_history_track_id ON play_history(track_id);

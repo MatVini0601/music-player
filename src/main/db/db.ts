@@ -72,4 +72,27 @@ function runMigrations(db: Database.Database): void {
       ALTER TABLE lyrics_new RENAME TO lyrics;
     `)
   }
+
+  // play_history.played_at started as INTEGER epoch-millis while every other table
+  // stores TEXT datetime('now'). SQLite can't change a column type, so the table is
+  // rebuilt, converting existing values (millis -> 'YYYY-MM-DD HH:MM:SS' UTC).
+  const historyTable = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_history'")
+    .get() as { sql: string } | undefined
+
+  if (historyTable && /played_at\s+INTEGER/i.test(historyTable.sql)) {
+    db.exec(`
+      CREATE TABLE play_history_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        played_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO play_history_new (id, track_id, played_at)
+        SELECT id, track_id, datetime(played_at / 1000, 'unixepoch') FROM play_history;
+      DROP TABLE play_history;
+      ALTER TABLE play_history_new RENAME TO play_history;
+      CREATE INDEX IF NOT EXISTS idx_play_history_track_id ON play_history(track_id);
+      CREATE INDEX IF NOT EXISTS idx_play_history_played_at ON play_history(played_at);
+    `)
+  }
 }

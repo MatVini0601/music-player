@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { Track } from '../../shared/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { LibrarySort, Track } from '../../shared/types'
 
-export type TrackSortKey = 'title' | 'album' | 'added' | 'duration'
-export type TrackSortDirection = 'asc' | 'desc'
+export type TrackSortKey = LibrarySort['key']
+export type TrackSortDirection = LibrarySort['direction']
 
 /**
  * Sort key for text columns: ignores punctuation/symbols ("(", quotes, *, §, …)
@@ -41,22 +41,37 @@ function compareTracks(a: Track, b: Track, key: TrackSortKey): number {
  * where cleared falls back to the list's natural order (scan order, playlist
  * position, album track number, …).
  */
-export function useTrackSort(tracks: Track[]) {
+export function useTrackSort(tracks: Track[], options?: { persisted?: boolean }) {
+  const persisted = options?.persisted ?? false
   const [sortKey, setSortKey] = useState<TrackSortKey | null>(null)
   const [sortDirection, setSortDirection] = useState<TrackSortDirection>('asc')
 
+  useEffect(() => {
+    if (!persisted) return
+    window.api.getLibrarySort().then((saved) => {
+      if (saved) {
+        setSortKey(saved.key)
+        setSortDirection(saved.direction)
+      }
+    })
+  }, [persisted])
+
   const toggleSort = useCallback(
     (key: TrackSortKey) => {
+      let next: LibrarySort | null
       if (sortKey !== key) {
-        setSortKey(key)
-        setSortDirection('asc')
+        next = { key, direction: 'asc' }
       } else if (sortDirection === 'asc') {
-        setSortDirection('desc')
+        next = { key, direction: 'desc' }
       } else {
-        setSortKey(null)
+        next = null
       }
+
+      setSortKey(next?.key ?? null)
+      setSortDirection(next?.direction ?? 'asc')
+      if (persisted) window.api.setLibrarySort(next)
     },
-    [sortKey, sortDirection]
+    [sortKey, sortDirection, persisted]
   )
 
   const sortedTracks = useMemo(() => {

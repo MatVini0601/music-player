@@ -27,9 +27,9 @@ Missing player features
 11. Almost no keyboard shortcuts. Only Escape-to-close-fullscreen exists. Space for play/pause and arrows for seek/volume would be a quick quality-of-life win.
 
 Smaller cleanups
-- The settings handlers in src/main/index.ts (~lines 105-204) are five copies of the same get/set boilerplate — a generic settings:get(key)/settings:set(key, value) pair with a key allowlist would halve the file.
-- play_history.played_at is an INTEGER timestamp while every other table stores TEXT datetime('now') — worth unifying before more code depends on it.
-- playlist_tracks uses PRIMARY KEY (playlist_id, track_id), which silently forbids adding the same song to a playlist twice. Fine if intentional, but it's a product decision worth making deliberately.
+- [DONE 2026-07-16] Settings handler boilerplate. Replaced the five bespoke get/set pairs with a registerSetting helper in src/main/index.ts (same IPC channel names, per-key validation and fallbacks kept; adding a new setting is now ~10 lines).
+- [DONE 2026-07-16] play_history.played_at unified to TEXT datetime('now'). Schema changed for fresh installs; existing DBs get a rebuild migration in db.ts that converts epoch-millis values (verified idempotent).
+- [DECIDED 2026-07-16] playlist_tracks: keeping no-duplicates (PK on playlist_id+track_id). Re-adding an existing track stays a silent no-op; documented as intentional in schema.ts and playlists.ts.
 
 
 - [DONE 2026-07-16] Ignore the word "The" on the ordering by title/album, and ignore . ' ’ - (sortableText in useTrackSort.ts)
