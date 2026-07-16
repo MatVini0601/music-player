@@ -4,12 +4,18 @@ import type { Track } from '../../shared/types'
 export type TrackSortKey = 'title' | 'album' | 'added' | 'duration'
 export type TrackSortDirection = 'asc' | 'desc'
 
-/** Sort key for text columns: ignores a leading "The " and the characters . ' ’ - */
+/**
+ * Sort key for text columns: ignores punctuation/symbols ("(", quotes, *, §, …)
+ * and a leading "The ", so e.g. "(Don't Fear) The Reaper" sorts under D.
+ * Symbol-only titles ("★", "?") would normalize to nothing, so they keep
+ * their original text and group at the top.
+ */
 function sortableText(value: string): string {
-  return value
+  const stripped = value
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
     .replace(/^\s*the\s+/i, '')
-    .replace(/[.'’-]/g, '')
     .trim()
+  return stripped || value.trim()
 }
 
 function compareText(a: string, b: string): number {
