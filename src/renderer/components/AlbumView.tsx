@@ -29,13 +29,13 @@ export function AlbumView({
   onAlbumArtChanged
 }: AlbumViewProps) {
   const [tracks, setTracks] = useState<Track[]>([])
-  const [coverArt, setCoverArt] = useState(album.artDataUrl)
+  const [coverArt, setCoverArt] = useState(album.artUrl)
   const { sortedTracks, sortKey, sortDirection, toggleSort } = useTrackSort(tracks)
 
   useEffect(() => {
     window.api.getAlbumTracks(album.id).then(setTracks)
-    setCoverArt(album.artDataUrl)
-  }, [album.id, album.artDataUrl])
+    setCoverArt(album.artUrl)
+  }, [album.id, album.artUrl])
 
   const changeCover = async (): Promise<void> => {
     const newArt = await window.api.setAlbumArt(album.id)
@@ -53,7 +53,7 @@ export function AlbumView({
   const setTrackArt = async (trackId: number): Promise<void> => {
     const newArt = await window.api.setTrackArt(trackId)
     if (newArt) {
-      setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, artDataUrl: newArt } : t)))
+      setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, artUrl: newArt } : t)))
     }
   }
 
@@ -119,7 +119,7 @@ export function AlbumView({
                       </MenuItem>
                       <MenuItem
                         danger
-                        disabled={!track.artDataUrl}
+                        disabled={!track.artUrl}
                         onClick={() => {
                           clearTrackArt(track.id)
                           close()

@@ -35,8 +35,8 @@ function QueueRow({ track, isCurrent, onClick, onRemove }: QueueRowProps) {
       }`}
     >
       <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded bg-white/5">
-        {track.artDataUrl && (
-          <img src={track.artDataUrl} alt="" className="h-full w-full object-cover" />
+        {track.artUrl && (
+          <img src={track.artUrl} alt="" className="h-full w-full object-cover" />
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -74,9 +74,13 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const currentTrack = currentIndex >= 0 ? (queue[currentIndex] ?? null) : null
   // Everything after the current track in actual play order (shuffled when shuffle is on),
-  // as queue indices so jump/remove still target the right track.
+  // as queue indices so jump/remove still target the right track. Rendering is capped:
+  // with a whole-library queue this list can be thousands of rows.
+  const MAX_UP_NEXT = 200
   const currentPos = playOrder.indexOf(currentIndex)
-  const upNextIndices = currentPos >= 0 ? playOrder.slice(currentPos + 1) : playOrder
+  const allUpNext = currentPos >= 0 ? playOrder.slice(currentPos + 1) : playOrder
+  const upNextIndices = allUpNext.slice(0, MAX_UP_NEXT)
+  const hiddenUpNextCount = allUpNext.length - upNextIndices.length
   const scrollRef = useRef<HTMLDivElement>(null)
   const nowPlayingRef = useRef<HTMLDivElement>(null)
 
@@ -160,6 +164,11 @@ export function QueuePanel({
                   )
                 })}
               </div>
+              {hiddenUpNextCount > 0 && (
+                <div className="px-2 py-2 text-xs text-gray-500">
+                  …and {hiddenUpNextCount} more
+                </div>
+              )}
             </>
           )}
         </div>

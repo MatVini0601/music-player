@@ -2,7 +2,6 @@ import { dialog, ipcMain, type BrowserWindow } from 'electron'
 import type { Database } from 'better-sqlite3'
 import { cacheImageFile } from './artCache'
 import {
-  pathToDataUrl,
   rowsToAlbums,
   rowsToTracks,
   TRACK_COLUMNS_SQL,
@@ -10,6 +9,7 @@ import {
   type AlbumRow,
   type TrackRow
 } from './trackMapper'
+import { toMediaUrl } from '../mediaProtocol'
 import type { Album, Track } from '../../shared/types'
 
 const IMAGE_FILTERS = [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
@@ -62,7 +62,7 @@ export function registerArtworkHandlers(
 
     const cachedPath = cacheImageFile(filePath)
     db.prepare('UPDATE albums SET user_art_path = ? WHERE id = ?').run(cachedPath, albumId)
-    return pathToDataUrl(cachedPath)
+    return toMediaUrl(cachedPath)
   })
 
   ipcMain.handle('artwork:clearAlbumArt', (_event, albumId: number): void => {
@@ -75,7 +75,7 @@ export function registerArtworkHandlers(
 
     const cachedPath = cacheImageFile(filePath)
     db.prepare('UPDATE tracks SET user_art_path = ? WHERE id = ?').run(cachedPath, trackId)
-    return pathToDataUrl(cachedPath)
+    return toMediaUrl(cachedPath)
   })
 
   ipcMain.handle('artwork:clearTrackArt', (_event, trackId: number): void => {
@@ -90,7 +90,7 @@ export function registerArtworkHandlers(
 
       const cachedPath = cacheImageFile(filePath)
       db.prepare('UPDATE playlists SET user_art_path = ? WHERE id = ?').run(cachedPath, playlistId)
-      return pathToDataUrl(cachedPath)
+      return toMediaUrl(cachedPath)
     }
   )
 

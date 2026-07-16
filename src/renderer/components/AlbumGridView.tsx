@@ -50,8 +50,8 @@ export function AlbumGridView({ albums, onSelectAlbum }: AlbumGridViewProps) {
                 className="flex flex-col items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-white/5"
               >
                 <div className="aspect-square w-full overflow-hidden rounded bg-white/5">
-                  {album.artDataUrl && (
-                    <img src={album.artDataUrl} alt="" className="h-full w-full object-cover" />
+                  {album.artUrl && (
+                    <img src={album.artUrl} alt="" className="h-full w-full object-cover" />
                   )}
                 </div>
                 <div className="min-w-0 w-full">

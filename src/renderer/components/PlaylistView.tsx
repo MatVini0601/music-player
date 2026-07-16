@@ -97,7 +97,7 @@ export function PlaylistView({
     onArtChanged()
   }
 
-  const cover = playlist.artDataUrl
+  const cover = playlist.artUrl
   const totalSeconds = tracks.reduce((sum, t) => sum + t.durationSeconds, 0)
 
   return (

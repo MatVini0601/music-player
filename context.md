@@ -31,3 +31,9 @@ Smaller cleanups
 - play_history.played_at is an INTEGER timestamp while every other table stores TEXT datetime('now') — worth unifying before more code depends on it.
 - playlist_tracks uses PRIMARY KEY (playlist_id, track_id), which silently forbids adding the same song to a playlist twice. Fine if intentional, but it's a product decision worth making deliberately.
 
+
+- [DONE 2026-07-16] Ignore the word "The" on the ordering by title/album, and ignore . ' ’ - (sortableText in useTrackSort.ts)
+- [DONE 2026-07-16] Large-library performance (7k+ tracks lagged, delayed song start). Root cause: getTracks embedded every track's album art as a base64 data URL (hundreds of MB over IPC). Fixed: art is now served lazily as mediafile:// URLs (protocol handler gained image MIME types; artDataUrl renamed to artUrl everywhere), the Library list is virtualized (only visible rows render, ROW_HEIGHT slots in LibraryView), Up next in the queue panel is capped at 200 rows, dominantColor sets crossOrigin for the protocol-served images.
+
+
+- Config to use exclusive audio(Only the player will control the PC audio)

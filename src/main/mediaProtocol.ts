@@ -18,11 +18,27 @@ export function registerMediaProtocolPrivileges(): void {
   ])
 }
 
+const MIME_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif'
+}
+
+function mimeTypeFor(filePath: string): string {
+  const dot = filePath.lastIndexOf('.')
+  const ext = dot >= 0 ? filePath.slice(dot).toLowerCase() : ''
+  return MIME_TYPES[ext] ?? 'application/octet-stream'
+}
+
 export function registerMediaProtocolHandler(): void {
   protocol.handle(MEDIA_PROTOCOL, async (request) => {
     const url = new URL(request.url)
     const filePath = decodeURIComponent(url.pathname.slice(1))
-    const mimeType = filePath.toLowerCase().endsWith('.flac') ? 'audio/flac' : 'audio/mpeg'
+    const mimeType = mimeTypeFor(filePath)
 
     let fileStat
     try {

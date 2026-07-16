@@ -28,7 +28,7 @@ export function FullscreenPlayer({
   onPrevious,
   onClose
 }: FullscreenPlayerProps) {
-  const cover = track?.artDataUrl ?? null
+  const cover = track?.artUrl ?? null
   const bgColor = useDominantColor(cover)
   const [showTags, setShowTags] = useState(false)
   const [metadata, setMetadata] = useState<TrackMetadata | null>(null)

@@ -4,12 +4,24 @@ import type { Track } from '../../shared/types'
 export type TrackSortKey = 'title' | 'album' | 'added' | 'duration'
 export type TrackSortDirection = 'asc' | 'desc'
 
+/** Sort key for text columns: ignores a leading "The " and the characters . ' ’ - */
+function sortableText(value: string): string {
+  return value
+    .replace(/^\s*the\s+/i, '')
+    .replace(/[.'’-]/g, '')
+    .trim()
+}
+
+function compareText(a: string, b: string): number {
+  return sortableText(a).localeCompare(sortableText(b), undefined, { sensitivity: 'base' })
+}
+
 function compareTracks(a: Track, b: Track, key: TrackSortKey): number {
   switch (key) {
     case 'title':
-      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      return compareText(a.title, b.title)
     case 'album':
-      return a.album.localeCompare(b.album, undefined, { sensitivity: 'base' })
+      return compareText(a.album, b.album)
     case 'added':
       // addedAt is "YYYY-MM-DD HH:MM:SS", so plain string comparison is chronological.
       return a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : 0

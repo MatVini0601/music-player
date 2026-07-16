@@ -176,8 +176,8 @@ export function Sidebar({
                   : 'bg-white/5 hover:ring-1 hover:ring-white/20'
               }`}
             >
-              {playlist.artDataUrl ? (
-                <img src={playlist.artDataUrl} alt="" className="h-full w-full object-cover" />
+              {playlist.artUrl ? (
+                <img src={playlist.artUrl} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-gray-500">
                   <Music size={16} />
@@ -212,9 +212,9 @@ export function Sidebar({
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
                   <span className="h-7 w-7 flex-shrink-0 overflow-hidden rounded bg-white/5">
-                    {playlist.artDataUrl ? (
+                    {playlist.artUrl ? (
                       <img
-                        src={playlist.artDataUrl}
+                        src={playlist.artUrl}
                         alt=""
                         className="h-full w-full object-cover"
                       />

@@ -83,10 +83,11 @@ export function TrackListRow({
       </div>
 
       <div className="col-start-2 row-span-2 h-10 w-10 self-center overflow-hidden rounded bg-white/5">
-        {track.artDataUrl && (
+        {track.artUrl && (
           <img
-            src={track.artDataUrl}
+            src={track.artUrl}
             alt=""
+            loading="lazy"
             draggable={false}
             className="h-full w-full object-cover"
           />

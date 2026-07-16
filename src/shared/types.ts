@@ -8,7 +8,7 @@ export interface Track {
   trackNo: number | null
   durationSeconds: number
   format: 'mp3' | 'flac'
-  artDataUrl: string | null
+  artUrl: string | null
   mediaUrl: string
   addedAt: string
 }
@@ -31,7 +31,7 @@ export interface Playlist {
   id: number
   name: string
   description: string | null
-  artDataUrl: string | null
+  artUrl: string | null
   trackCount: number
 }
 
@@ -39,7 +39,7 @@ export interface Album {
   id: number
   title: string
   albumArtist: string
-  artDataUrl: string | null
+  artUrl: string | null
   trackCount: number
 }
 

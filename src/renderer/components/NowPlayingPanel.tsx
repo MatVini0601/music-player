@@ -51,8 +51,8 @@ export function NowPlayingPanel({ track, isOpen, onClose }: NowPlayingPanelProps
         <div className="mt-6 min-h-0 w-80 flex-1 overflow-y-auto px-6">
           <div className="flex flex-col items-center text-center">
             <div className="aspect-square w-full overflow-hidden rounded-lg bg-white/5">
-              {track.artDataUrl && (
-                <img src={track.artDataUrl} alt="" className="h-full w-full object-cover" />
+              {track.artUrl && (
+                <img src={track.artUrl} alt="" className="h-full w-full object-cover" />
               )}
             </div>
             <h3 className="mt-4 w-full truncate text-lg font-semibold" title={track.title}>

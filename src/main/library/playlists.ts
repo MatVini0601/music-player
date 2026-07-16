@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import type { Database } from 'better-sqlite3'
-import { pathToDataUrl, rowsToTracks, TRACK_COLUMNS_SQL, TRACK_JOINS_SQL, type TrackRow } from './trackMapper'
+import { rowsToTracks, TRACK_COLUMNS_SQL, TRACK_JOINS_SQL, type TrackRow } from './trackMapper'
+import { toMediaUrl } from '../mediaProtocol'
 import type { Playlist, Track } from '../../shared/types'
 
 export function registerPlaylistHandlers(db: Database): void {
@@ -33,22 +34,20 @@ export function registerPlaylistHandlers(db: Database): void {
        LIMIT 1`
     )
 
-    return Promise.all(
-      rows.map(async (r) => {
-        const artPath =
-          r.user_art_path ??
-          (getFallbackArt.get(r.id) as { resolved_path: string } | undefined)?.resolved_path ??
-          null
+    return rows.map((r) => {
+      const artPath =
+        r.user_art_path ??
+        (getFallbackArt.get(r.id) as { resolved_path: string } | undefined)?.resolved_path ??
+        null
 
-        return {
-          id: r.id,
-          name: r.name,
-          description: r.description,
-          artDataUrl: artPath ? await pathToDataUrl(artPath) : null,
-          trackCount: r.track_count
-        }
-      })
-    )
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        artUrl: artPath ? toMediaUrl(artPath) : null,
+        trackCount: r.track_count
+      }
+    })
   })
 
   ipcMain.handle('playlist:create', (_event, name: string): Playlist => {
@@ -57,7 +56,7 @@ export function registerPlaylistHandlers(db: Database): void {
       id: Number(result.lastInsertRowid),
       name,
       description: null,
-      artDataUrl: null,
+      artUrl: null,
       trackCount: 0
     }
   })
@@ -89,7 +88,7 @@ export function registerPlaylistHandlers(db: Database): void {
       )
       .all(playlistId) as (TrackRow & { playlist_added_at: string })[]
 
-    const tracks = await rowsToTracks(rows)
+    const tracks = rowsToTracks(rows)
     // "Date added" in a playlist means when the track was added to THIS playlist,
     // not when it was originally added to the library.
     return tracks.map((track, i) => ({ ...track, addedAt: rows[i].playlist_added_at }))

@@ -1,7 +1,10 @@
 /** Samples an image's average color and darkens it slightly for use as a hero-banner gradient start. */
-export function getDominantColor(imageDataUrl: string): Promise<string | null> {
+export function getDominantColor(imageUrl: string): Promise<string | null> {
   return new Promise((resolve) => {
     const img = new Image()
+    // Art is served over mediafile:// now; without CORS opt-in the canvas would be
+    // tainted and getImageData would throw.
+    img.crossOrigin = 'anonymous'
 
     img.onload = () => {
       try {
@@ -48,6 +51,6 @@ export function getDominantColor(imageDataUrl: string): Promise<string | null> {
     }
 
     img.onerror = () => resolve(null)
-    img.src = imageDataUrl
+    img.src = imageUrl
   })
 }

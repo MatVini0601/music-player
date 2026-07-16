@@ -73,8 +73,8 @@ export function NowPlayingBar({
           className="h-12 w-12 flex-shrink-0 overflow-hidden rounded bg-white/5 transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
           aria-label="Show now playing details"
         >
-          {track?.artDataUrl && (
-            <img src={track.artDataUrl} alt="" className="h-full w-full object-cover" />
+          {track?.artUrl && (
+            <img src={track.artUrl} alt="" className="h-full w-full object-cover" />
           )}
         </button>
         <div className="min-w-0">

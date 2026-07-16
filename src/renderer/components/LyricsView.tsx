@@ -22,7 +22,7 @@ export function LyricsView({ track, currentTime }: LyricsViewProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draftText, setDraftText] = useState('')
   const lineRefs = useRef<(HTMLDivElement | null)[]>([])
-  const heroColor = useDominantColor(track?.artDataUrl ?? null)
+  const heroColor = useDominantColor(track?.artUrl ?? null)
 
   useEffect(() => {
     if (!track) {
@@ -125,8 +125,8 @@ export function LyricsView({ track, currentTime }: LyricsViewProps) {
       <div className="flex min-h-0 flex-1 items-start gap-10 overflow-hidden">
         <div className="flex w-72 flex-shrink-0 flex-col items-center">
           <div className="aspect-square w-full overflow-hidden rounded-lg bg-white/5 shadow-lg">
-            {track?.artDataUrl && (
-              <img src={track.artDataUrl} alt="" className="h-full w-full object-cover" />
+            {track?.artUrl && (
+              <img src={track.artUrl} alt="" className="h-full w-full object-cover" />
             )}
           </div>
           {track && (

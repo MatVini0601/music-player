@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join } from 'node:path'
 import { getDb } from './db/db'
 import { scanLibrary } from './library/scanner'
@@ -215,6 +216,14 @@ app.whenReady().then(() => {
   registerMediaProtocolHandler()
   registerIpcHandlers()
   createWindow()
+
+  // Checks the GitHub Releases feed, downloads a newer version in the background,
+  // notifies the user, and installs it when the app quits. Dev builds are skipped.
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      console.warn('Update check failed:', error)
+    })
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -16,11 +16,22 @@ body,
   overflow-x: hidden;
 }
 
+/* Scrollbars keep their gutter (no layout shift) but the thumb is only painted
+   while the scrolling container is hovered. */
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #3a3a3c;
+  background-color: transparent;
   border-radius: 9999px;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: #3a3a3c;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #4a4a4e;
 }

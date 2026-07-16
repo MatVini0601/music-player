@@ -54,9 +54,9 @@ export function HomeView({
                       className="flex items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-black/20"
                     >
                       <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded bg-black/20 shadow-md">
-                        {album.artDataUrl && (
+                        {album.artUrl && (
                           <img
-                            src={album.artDataUrl}
+                            src={album.artUrl}
                             alt=""
                             className="h-full w-full object-cover"
                           />

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import type { Database } from 'better-sqlite3'
 import { toMediaUrl } from '../mediaProtocol'
 import type { Album, Track } from '../../shared/types'
@@ -25,16 +24,6 @@ export interface TrackRow {
   added_at: string
 }
 
-export async function pathToDataUrl(path: string): Promise<string | null> {
-  try {
-    const buffer = await readFile(path)
-    const ext = path.toLowerCase().endsWith('.png') ? 'png' : 'jpeg'
-    return `data:image/${ext};base64,${buffer.toString('base64')}`
-  } catch {
-    return null
-  }
-}
-
 export interface AlbumRow {
   id: number
   title: string
@@ -43,7 +32,7 @@ export interface AlbumRow {
   track_count: number
 }
 
-export async function rowsToAlbums(db: Database, rows: AlbumRow[]): Promise<Album[]> {
+export function rowsToAlbums(db: Database, rows: AlbumRow[]): Album[] {
   const getFallbackArt = db.prepare(
     `SELECT ac.image_path
      FROM tracks t
@@ -53,44 +42,39 @@ export async function rowsToAlbums(db: Database, rows: AlbumRow[]): Promise<Albu
      LIMIT 1`
   )
 
-  return Promise.all(
-    rows.map(async (r) => {
-      const artPath =
-        r.user_art_path ??
-        (getFallbackArt.get(r.id) as { image_path: string } | undefined)?.image_path ??
-        null
+  return rows.map((r) => {
+    const artPath =
+      r.user_art_path ??
+      (getFallbackArt.get(r.id) as { image_path: string } | undefined)?.image_path ??
+      null
 
-      return {
-        id: r.id,
-        title: r.title,
-        albumArtist: r.album_artist,
-        trackCount: r.track_count,
-        artDataUrl: artPath ? await pathToDataUrl(artPath) : null
-      }
-    })
-  )
+    return {
+      id: r.id,
+      title: r.title,
+      albumArtist: r.album_artist,
+      trackCount: r.track_count,
+      artUrl: artPath ? toMediaUrl(artPath) : null
+    }
+  })
 }
 
-export async function rowsToTracks(rows: TrackRow[]): Promise<Track[]> {
-  return Promise.all(
-    rows.map(async (r) => {
-      const resolvedArtPath = r.user_art_path ?? r.album_art_path ?? r.image_path
-      const artDataUrl = resolvedArtPath ? await pathToDataUrl(resolvedArtPath) : null
+export function rowsToTracks(rows: TrackRow[]): Track[] {
+  return rows.map((r) => {
+    const resolvedArtPath = r.user_art_path ?? r.album_art_path ?? r.image_path
 
-      return {
-        id: r.id,
-        filePath: r.file_path,
-        title: r.title,
-        artist: r.artist,
-        album: r.album,
-        albumArtist: r.album_artist,
-        trackNo: r.track_no,
-        durationSeconds: r.duration_seconds,
-        format: r.format as 'mp3' | 'flac',
-        artDataUrl,
-        mediaUrl: toMediaUrl(r.file_path),
-        addedAt: r.added_at
-      }
-    })
-  )
+    return {
+      id: r.id,
+      filePath: r.file_path,
+      title: r.title,
+      artist: r.artist,
+      album: r.album,
+      albumArtist: r.album_artist,
+      trackNo: r.track_no,
+      durationSeconds: r.duration_seconds,
+      format: r.format as 'mp3' | 'flac',
+      artUrl: resolvedArtPath ? toMediaUrl(resolvedArtPath) : null,
+      mediaUrl: toMediaUrl(r.file_path),
+      addedAt: r.added_at
+    }
+  })
 }
