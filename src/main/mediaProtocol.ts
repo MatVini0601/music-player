@@ -1,7 +1,9 @@
-import { protocol } from 'electron'
+import { app, protocol } from 'electron'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
+import { join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
+import { getDb } from './db/db'
 
 export const MEDIA_PROTOCOL = 'mediafile'
 
@@ -41,10 +43,24 @@ function mimeTypeFor(filePath: string): string {
   return MIME_TYPES[ext] ?? 'application/octet-stream'
 }
 
+// The renderer can put any path in a mediafile:// URL, so gate what actually gets served:
+// track files known to the library (exact DB match) and images in the art cache — where
+// every piece of art, embedded or user-picked, is copied. Anything else, including
+// path-traversal attempts (resolve() collapses ".."), is refused.
+function isAllowedPath(filePath: string): boolean {
+  const artDirPrefix = (join(app.getPath('userData'), 'art-cache') + sep).toLowerCase()
+  if (filePath.toLowerCase().startsWith(artDirPrefix)) return true
+
+  return getDb().prepare('SELECT 1 FROM tracks WHERE file_path = ?').get(filePath) !== undefined
+}
+
 export function registerMediaProtocolHandler(): void {
   protocol.handle(MEDIA_PROTOCOL, async (request) => {
     const url = new URL(request.url)
-    const filePath = decodeURIComponent(url.pathname.slice(1))
+    const filePath = resolve(decodeURIComponent(url.pathname.slice(1)))
+    if (!isAllowedPath(filePath)) {
+      return new Response('Forbidden', { status: 403 })
+    }
     const mimeType = mimeTypeFor(filePath)
 
     let fileStat
