@@ -139,6 +139,9 @@ export interface LibraryApi {
   /** Audio output device id; '' means the system default. */
   getAudioOutput(): Promise<string>
   setAudioOutput(deviceId: string): Promise<void>
+  /** Last app version this user ran; '' on first launch. Drives the "What's new" popup. */
+  getLastSeenVersion(): Promise<string>
+  setLastSeenVersion(version: string): Promise<void>
   getLyrics(trackId: number): Promise<LyricsResult | null>
   setLyrics(trackId: number, text: string): Promise<LyricsResult>
   clearLyrics(trackId: number): Promise<void>

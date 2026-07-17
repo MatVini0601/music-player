@@ -51,6 +51,9 @@ const api: LibraryApi = {
   setSortMode: (mode: SortMode) => ipcRenderer.invoke('settings:setSortMode', mode),
   getAudioOutput: () => ipcRenderer.invoke('settings:getAudioOutput'),
   setAudioOutput: (deviceId: string) => ipcRenderer.invoke('settings:setAudioOutput', deviceId),
+  getLastSeenVersion: () => ipcRenderer.invoke('settings:getLastSeenVersion'),
+  setLastSeenVersion: (version: string) =>
+    ipcRenderer.invoke('settings:setLastSeenVersion', version),
   getLyrics: (trackId: number) => ipcRenderer.invoke('lyrics:getForTrack', trackId),
   setLyrics: (trackId: number, text: string) =>
     ipcRenderer.invoke('lyrics:setForTrack', trackId, text),

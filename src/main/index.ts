@@ -216,6 +216,12 @@ function registerIpcHandlers(): void {
     fallback: () => ''
   })
 
+  registerSetting<string>('LastSeenVersion', 'lastSeenVersion', {
+    fromStored: (stored) => stored,
+    toStored: (version) => version,
+    fallback: () => ''
+  })
+
   registerSetting<LibrarySort | null>('LibrarySort', 'librarySort', {
     fromStored: (stored) => {
       const parsed = JSON.parse(stored)

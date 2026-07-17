@@ -11,6 +11,7 @@ import {
   X
 } from 'lucide-react'
 import type { Playlist } from '../../shared/types'
+import { ConfirmModal } from './ConfirmModal'
 
 export type SelectedView =
   | { type: 'home' }
@@ -42,6 +43,7 @@ export function Sidebar({
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [deletingPlaylist, setDeletingPlaylist] = useState<Playlist | null>(null)
 
   useEffect(() => {
     window.api.getSidebarCollapsed().then(setIsCollapsed)
@@ -231,9 +233,7 @@ export function Sidebar({
                 </button>
               )}
               <button
-                onClick={() => {
-                  if (confirm(`Delete playlist "${playlist.name}"?`)) onDeletePlaylist(playlist.id)
-                }}
+                onClick={() => setDeletingPlaylist(playlist)}
                 className="ml-2 hidden text-gray-500 transition-colors hover:text-red-400 group-hover:block"
                 aria-label="Delete playlist"
               >
@@ -263,6 +263,23 @@ export function Sidebar({
           {isCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
         </button>
       </div>
+
+      {deletingPlaylist && (
+        <ConfirmModal
+          title="Delete playlist"
+          message={
+            <>
+              Delete playlist <span className="text-white">&quot;{deletingPlaylist.name}&quot;</span>
+              ? Its tracks stay in the library.
+            </>
+          }
+          onConfirm={() => {
+            onDeletePlaylist(deletingPlaylist.id)
+            setDeletingPlaylist(null)
+          }}
+          onCancel={() => setDeletingPlaylist(null)}
+        />
+      )}
     </div>
   )
 }

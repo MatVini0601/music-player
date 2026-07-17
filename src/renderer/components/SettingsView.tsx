@@ -5,6 +5,7 @@ import type { UpdateStatus } from '../hooks/useAppUpdates'
 import { EqBandsEditor } from './EqBandsEditor'
 import { PopoverMenu } from './PopoverMenu'
 import { MenuItem } from './MenuItem'
+import { ConfirmModal } from './ConfirmModal'
 
 const ACCENT_PRESETS = [
   '#1db954', // green
@@ -130,6 +131,7 @@ export function SettingsView({
   const currentOutputLabel = audioOutputId
     ? (outputDevices.find((d) => d.deviceId === audioOutputId)?.label ?? 'Unavailable device')
     : 'System default'
+  const [removingFolder, setRemovingFolder] = useState<string | null>(null)
   return (
     <div className="h-full overflow-y-auto px-8 py-8">
       <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -348,15 +350,7 @@ export function SettingsView({
                     {path}
                   </span>
                   <button
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Remove "${path}" from the library?\n\nIts tracks will be removed from the library (the files stay on disk).`
-                        )
-                      ) {
-                        onRemoveFolder(path)
-                      }
-                    }}
+                    onClick={() => setRemovingFolder(path)}
                     disabled={isScanning}
                     title="Remove folder"
                     aria-label={`Remove folder ${path}`}
@@ -394,6 +388,24 @@ export function SettingsView({
           )}
         </section>
       </div>
+
+      {removingFolder && (
+        <ConfirmModal
+          title="Remove folder"
+          confirmLabel="Remove"
+          message={
+            <>
+              Remove <span className="break-all text-white">&quot;{removingFolder}&quot;</span> from
+              the library? Its tracks will be removed from the library (the files stay on disk).
+            </>
+          }
+          onConfirm={() => {
+            onRemoveFolder(removingFolder)
+            setRemovingFolder(null)
+          }}
+          onCancel={() => setRemovingFolder(null)}
+        />
+      )}
     </div>
   )
 }

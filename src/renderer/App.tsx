@@ -9,6 +9,8 @@ import { useDominantColorBg } from './hooks/useDominantColorBg'
 import { useSortMode } from './hooks/useSortMode'
 import { useAppUpdates } from './hooks/useAppUpdates'
 import { UpdateModal } from './components/UpdateModal'
+import { WhatsNewModal } from './components/WhatsNewModal'
+import { changesForVersion } from './changelog'
 import { HomeView } from './components/HomeView'
 import { LibraryView } from './components/LibraryView'
 import { PlaylistView } from './components/PlaylistView'
@@ -50,6 +52,26 @@ export default function App() {
   const [isLyricsViewOpen, setIsLyricsViewOpen] = useState(false)
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
   const [eqTrack, setEqTrack] = useState<Track | null>(null)
+  const [whatsNew, setWhatsNew] = useState<{ version: string; changes: string[] } | null>(null)
+
+  // First launch on a new version shows that release's notes; a fresh install just
+  // records the version silently. No stored version normally means fresh install, but
+  // users updating from before this feature existed also have none — a non-empty
+  // library tells them apart.
+  useEffect(() => {
+    Promise.all([
+      window.api.getAppVersion(),
+      window.api.getLastSeenVersion(),
+      window.api.getLibraryRoots()
+    ]).then(([version, lastSeen, roots]) => {
+      if (!version || lastSeen === version) return
+      if (lastSeen || roots.length > 0) {
+        const changes = changesForVersion(version)
+        if (changes) setWhatsNew({ version, changes })
+      }
+      window.api.setLastSeenVersion(version)
+    })
+  }, [])
 
   useEffect(() => {
     if (!isFullscreenOpen) return
@@ -323,6 +345,13 @@ export default function App() {
           onDownload={updates.downloadUpdate}
           onInstall={updates.installUpdate}
           onClose={updates.dismissPopup}
+        />
+      )}
+      {whatsNew && (
+        <WhatsNewModal
+          version={whatsNew.version}
+          changes={whatsNew.changes}
+          onClose={() => setWhatsNew(null)}
         />
       )}
     </div>

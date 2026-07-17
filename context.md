@@ -10,6 +10,7 @@ POINTS FOR UPGRADES
 3. The ordenation is loaded every time the library is clicked. Theres a way to save the library ordenation instead of reordering every time?
 4. Save position in library scroll when opening Lyrics, full screen or any tab
 5. [DONE 2026-07-17] Artist filter on album — second dropdown next to the genre one (User icon), same searchable 10-row design; filters by albumArtist, no DB changes needed. Genre + artist + text search all combine.
+6. [DONE 2026-07-17] "What's new" popup after updates — bundled changelog (src/renderer/changelog.ts, keyed by exact package.json version; ADD AN ENTRY EACH RELEASE), shown once when the stored LastSeenVersion differs from the running version. Fresh installs stay silent; users updating from pre-0.2.5 (no stored version) are detected by a non-empty library.
 
 WHAT COULD BE BETTER (review 2026-07-15)
 
@@ -34,6 +35,7 @@ Smaller cleanups
 - [DONE 2026-07-16] Settings handler boilerplate. Replaced the five bespoke get/set pairs with a registerSetting helper in src/main/index.ts (same IPC channel names, per-key validation and fallbacks kept; adding a new setting is now ~10 lines).
 - [DONE 2026-07-16] play_history.played_at unified to TEXT datetime('now'). Schema changed for fresh installs; existing DBs get a rebuild migration in db.ts that converts epoch-millis values (verified idempotent).
 - [DECIDED 2026-07-16] playlist_tracks: keeping no-duplicates (PK on playlist_id+track_id). Re-adding an existing track stays a silent no-op; documented as intentional in schema.ts and playlists.ts.
+- [DONE 2026-07-17] Native confirm() popups replaced with a themed ConfirmModal (delete playlist in Sidebar, remove folder in Settings). Portaled to document.body so the sidebar's backdrop-blur can't trap the overlay; Esc/backdrop click cancels. No native alert/prompt/confirm remain in the renderer.
 
 
 - [DONE 2026-07-16] Ignore the word "The" on the ordering by title/album, and ignore . ' ’ - (sortableText in useTrackSort.ts)
