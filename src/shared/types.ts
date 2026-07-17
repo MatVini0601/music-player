@@ -9,7 +9,7 @@ export interface Track {
   genre: string
   trackNo: number | null
   durationSeconds: number
-  format: 'mp3' | 'flac'
+  format: string
   artUrl: string | null
   mediaUrl: string
   addedAt: string

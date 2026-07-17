@@ -6,7 +6,19 @@ import { cachePicture } from './artCache'
 import { getMusicMetadata } from './musicMetadataLoader'
 import type { ScanProgress, ScanResult } from '../../shared/types'
 
-const SUPPORTED_EXTENSIONS = new Set(['.mp3', '.flac'])
+// Limited to formats Chromium's <audio> element can actually decode natively — this app
+// has no transcoding layer, so anything else would scan into the library but fail to play.
+const SUPPORTED_EXTENSIONS = new Set([
+  '.mp3',
+  '.flac',
+  '.m4a',
+  '.m4b',
+  '.aac',
+  '.wav',
+  '.ogg',
+  '.opus',
+  '.webm'
+])
 
 async function walk(dir: string, unreadableDirs: string[]): Promise<string[]> {
   let entries
@@ -112,7 +124,7 @@ export async function scanLibrary(
       const { parseFile } = await getMusicMetadata()
       const metadata = await parseFile(filePath)
       const common = metadata.common
-      const format = extname(filePath).toLowerCase() === '.flac' ? 'flac' : 'mp3'
+      const format = extname(filePath).toLowerCase().slice(1)
       const albumId = findOrCreateAlbum(db, common.album ?? '', common.albumartist ?? common.artist ?? '')
       const genre = common.genre?.length ? common.genre.join(', ') : ''
 

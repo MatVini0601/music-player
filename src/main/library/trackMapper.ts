@@ -90,7 +90,7 @@ export function rowsToTracks(rows: TrackRow[]): Track[] {
       genre: r.genre ?? '',
       trackNo: r.track_no,
       durationSeconds: r.duration_seconds,
-      format: r.format as 'mp3' | 'flac',
+      format: r.format,
       artUrl: resolvedArtPath ? toMediaUrl(resolvedArtPath) : null,
       mediaUrl: toMediaUrl(r.file_path),
       addedAt: r.added_at

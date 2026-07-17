@@ -21,6 +21,13 @@ export function registerMediaProtocolPrivileges(): void {
 const MIME_TYPES: Record<string, string> = {
   '.mp3': 'audio/mpeg',
   '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.m4b': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/opus',
+  '.webm': 'audio/webm',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',

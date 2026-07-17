@@ -272,7 +272,8 @@ export function SettingsView({
 
           {libraryRoots.length === 0 ? (
             <p className="text-sm text-gray-500">
-              No folders yet. Add a folder with MP3 or FLAC files to build your library.
+              No folders yet. Add a folder with MP3, FLAC, M4A, AAC, WAV, OGG, Opus, or WebM
+              files to build your library.
             </p>
           ) : (
             <div className="flex flex-col gap-1">
