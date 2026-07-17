@@ -2,9 +2,30 @@ import { readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, extname, sep } from 'node:path'
 import type { Database } from 'better-sqlite3'
+import type { IPicture } from 'music-metadata'
 import { cachePicture } from './artCache'
 import { getMusicMetadata } from './musicMetadataLoader'
 import type { ScanProgress, ScanResult } from '../../shared/types'
+
+/** Tag data parsed from one file, buffered until the next chunked transaction flush. */
+interface ParsedTrack {
+  filePath: string
+  existingId: number | null
+  mtimeMs: number
+  title: string
+  artist: string
+  album: string
+  albumArtist: string
+  genre: string
+  trackNo: number | null
+  durationSeconds: number
+  format: string
+  picture: IPicture | undefined
+}
+
+/** How many parsed files get written per transaction. Parsing (the slow, async part) stays
+ *  outside the transaction so IPC writes from the rest of the app can't interleave into it. */
+const SCAN_CHUNK_SIZE = 50
 
 // Limited to formats Chromium's <audio> element can actually decode natively — this app
 // has no transcoding layer, so anything else would scan into the library but fail to play.
@@ -101,6 +122,46 @@ export async function scanLibrary(
   const clearArtForTrack = db.prepare('DELETE FROM art_cache WHERE track_id = ?')
 
   let addedOrUpdated = 0
+  const pending: ParsedTrack[] = []
+
+  // The whole chunk lands in one transaction instead of one implicit transaction per
+  // statement — the difference between minutes and seconds on a large first scan.
+  const writeChunk = db.transaction((items: ParsedTrack[]) => {
+    for (const item of items) {
+      const albumId = findOrCreateAlbum(db, item.album, item.albumArtist)
+      const result = upsertTrack.run({
+        filePath: item.filePath,
+        title: item.title,
+        artist: item.artist,
+        album: item.album,
+        albumArtist: item.albumArtist,
+        genre: item.genre,
+        trackNo: item.trackNo,
+        durationSeconds: item.durationSeconds,
+        format: item.format,
+        albumId,
+        fileMtimeMs: item.mtimeMs
+      })
+      const trackId = item.existingId ?? Number(result.lastInsertRowid)
+
+      if (item.picture) {
+        clearArtForTrack.run(trackId)
+        upsertArt.run(trackId, cachePicture(item.picture))
+      }
+    }
+  })
+
+  const flushPending = (): void => {
+    if (pending.length === 0) return
+    const items = pending.splice(0, pending.length)
+    try {
+      writeChunk(items)
+      addedOrUpdated += items.length
+    } catch (error) {
+      console.warn('Scan: failed to write chunk to database:', error)
+      failedFiles.push(...items.map((item) => item.filePath))
+    }
+  }
 
   for (let i = 0; i < allFiles.length; i++) {
     const filePath = allFiles[i]
@@ -124,57 +185,29 @@ export async function scanLibrary(
       const { parseFile } = await getMusicMetadata()
       const metadata = await parseFile(filePath)
       const common = metadata.common
-      const format = extname(filePath).toLowerCase().slice(1)
-      const albumId = findOrCreateAlbum(db, common.album ?? '', common.albumartist ?? common.artist ?? '')
-      const genre = common.genre?.length ? common.genre.join(', ') : ''
 
-      const trackId = existing
-        ? existing.id
-        : Number(
-            upsertTrack.run({
-              filePath,
-              title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-              artist: common.artist ?? '',
-              album: common.album ?? '',
-              albumArtist: common.albumartist ?? common.artist ?? '',
-              genre,
-              trackNo: common.track?.no ?? null,
-              durationSeconds: metadata.format.duration ?? 0,
-              format,
-              albumId,
-              fileMtimeMs: mtimeMs
-            }).lastInsertRowid
-          )
-
-      if (existing) {
-        upsertTrack.run({
-          filePath,
-          title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-          artist: common.artist ?? '',
-          album: common.album ?? '',
-          albumArtist: common.albumartist ?? common.artist ?? '',
-          genre,
-          trackNo: common.track?.no ?? null,
-          durationSeconds: metadata.format.duration ?? 0,
-          format,
-          albumId,
-          fileMtimeMs: mtimeMs
-        })
-      }
-
-      const picture = common.picture?.[0]
-      if (picture) {
-        clearArtForTrack.run(trackId)
-        const imagePath = cachePicture(picture)
-        upsertArt.run(trackId, imagePath)
-      }
-
-      addedOrUpdated++
+      pending.push({
+        filePath,
+        existingId: existing?.id ?? null,
+        mtimeMs,
+        title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
+        artist: common.artist ?? '',
+        album: common.album ?? '',
+        albumArtist: common.albumartist ?? common.artist ?? '',
+        genre: common.genre?.length ? common.genre.join(', ') : '',
+        trackNo: common.track?.no ?? null,
+        durationSeconds: metadata.format.duration ?? 0,
+        format: extname(filePath).toLowerCase().slice(1),
+        picture: common.picture?.[0]
+      })
+      if (pending.length >= SCAN_CHUNK_SIZE) flushPending()
     } catch (error) {
       console.warn(`Scan: failed to process ${filePath}:`, error)
       failedFiles.push(filePath)
     }
   }
+
+  flushPending()
 
   const allTracks = db.prepare('SELECT id, file_path FROM tracks').all() as {
     id: number
