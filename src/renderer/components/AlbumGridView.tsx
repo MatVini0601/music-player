@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ListFilter, User } from 'lucide-react'
 import type { Album } from '../../shared/types'
@@ -12,6 +12,10 @@ interface AlbumGridViewProps {
 }
 
 const FILTER_MENU_MAX_ROWS = 10
+
+// The view unmounts whenever another tab (or the Lyrics page) takes over the content area;
+// keeping the last scroll position at module level lets a remount restore it. Session-only.
+let savedScrollTop = 0
 
 /** Case-insensitive dedupe (first spelling wins), alphabetized; empties dropped. */
 function uniqueSorted(values: string[]): string[] {
@@ -140,6 +144,13 @@ export function AlbumGridView({ albums, onSelectAlbum }: AlbumGridViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [genreFilter, setGenreFilter] = useState<string | null>(null)
   const [artistFilter, setArtistFilter] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const hasAlbums = albums.length > 0
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el && savedScrollTop > 0) el.scrollTop = savedScrollTop
+  }, [hasAlbums])
 
   const allGenres = useMemo(() => uniqueSorted(albums.flatMap((a) => a.genres)), [albums])
   const allArtists = useMemo(() => uniqueSorted(albums.map((a) => a.albumArtist)), [albums])
@@ -193,7 +204,13 @@ export function AlbumGridView({ albums, onSelectAlbum }: AlbumGridViewProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          savedScrollTop = e.currentTarget.scrollTop
+        }}
+        className="flex-1 overflow-y-auto px-6 pb-6"
+      >
         {albums.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-gray-500">
             <p>No albums yet.</p>

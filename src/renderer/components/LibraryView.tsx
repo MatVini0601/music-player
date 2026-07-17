@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { Playlist, Track } from '../../shared/types'
 import { TrackListRow } from './TrackListRow'
@@ -31,6 +31,10 @@ interface LibraryViewProps {
 const ROW_HEIGHT = 60
 const OVERSCAN = 8
 
+// The view unmounts whenever another tab (or the Lyrics page) takes over the content area;
+// keeping the last scroll position at module level lets a remount restore it. Session-only.
+let savedScrollTop = 0
+
 export function LibraryView({
   tracks,
   currentTrack,
@@ -57,8 +61,16 @@ export function LibraryView({
   // Windowed rendering: with libraries in the thousands, only the rows near the
   // viewport are mounted; everything else is a single sized spacer.
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [scrollTop, setScrollTop] = useState(0)
+  const [scrollTop, setScrollTop] = useState(savedScrollTop)
   const [viewportHeight, setViewportHeight] = useState(0)
+
+  // Layout effect so the restored position is applied before paint — no flash of the top
+  // of the list. Only meaningful once tracks are in (the spacer must have its height).
+  const hasTracks = tracks.length > 0
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el && savedScrollTop > 0) el.scrollTop = savedScrollTop
+  }, [hasTracks])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -117,7 +129,10 @@ export function LibraryView({
 
       <div
         ref={scrollRef}
-        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        onScroll={(e) => {
+          setScrollTop(e.currentTarget.scrollTop)
+          savedScrollTop = e.currentTarget.scrollTop
+        }}
         className="flex-1 overflow-y-auto px-3 py-2"
       >
         {tracks.length === 0 ? (
