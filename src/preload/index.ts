@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { EqBand, LibraryApi, LibrarySort, ScanProgress, UpdateEvent } from '../shared/types'
+import type { EqBand, LibraryApi, LibrarySort, ScanProgress, SortMode, UpdateEvent } from '../shared/types'
 
 const api: LibraryApi = {
   pickFolder: () => ipcRenderer.invoke('library:pickFolder'),
@@ -42,8 +42,15 @@ const api: LibraryApi = {
   getSidebarCollapsed: () => ipcRenderer.invoke('settings:getSidebarCollapsed'),
   setSidebarCollapsed: (collapsed: boolean) =>
     ipcRenderer.invoke('settings:setSidebarCollapsed', collapsed),
+  getDominantColorBg: () => ipcRenderer.invoke('settings:getDominantColorBg'),
+  setDominantColorBg: (enabled: boolean) =>
+    ipcRenderer.invoke('settings:setDominantColorBg', enabled),
   getLibrarySort: () => ipcRenderer.invoke('settings:getLibrarySort'),
   setLibrarySort: (sort: LibrarySort | null) => ipcRenderer.invoke('settings:setLibrarySort', sort),
+  getSortMode: () => ipcRenderer.invoke('settings:getSortMode'),
+  setSortMode: (mode: SortMode) => ipcRenderer.invoke('settings:setSortMode', mode),
+  getAudioOutput: () => ipcRenderer.invoke('settings:getAudioOutput'),
+  setAudioOutput: (deviceId: string) => ipcRenderer.invoke('settings:setAudioOutput', deviceId),
   getLyrics: (trackId: number) => ipcRenderer.invoke('lyrics:getForTrack', trackId),
   setLyrics: (trackId: number, text: string) =>
     ipcRenderer.invoke('lyrics:setForTrack', trackId, text),

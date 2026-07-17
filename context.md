@@ -4,8 +4,12 @@ WHAT KIND OF PROJECT THIS IS?
 - MP3 or FLAC
 
 POINTS FOR UPGRADES
-- last.fm integration
-- genre filter on album
+
+1. Last.fm integration
+2. [DONE 2026-07-17] Genre filter on album — Albums view has a genre dropdown (PopoverMenu) next to search, with its own genre-only search bar inside and the list capped at 10 rows (+N more hint); Album.genres is aggregated per album in rowsToAlbums (multi-genre tags split, case-insensitive dedupe). Hidden until the library has genres (needs one rescan after the genre-column update).
+3. The ordenation is loaded every time the library is clicked. Theres a way to save the library ordenation instead of reordering every time?
+4. Save position in library scroll when opening Lyrics, full screen or any tab
+5. [DONE 2026-07-17] Artist filter on album — second dropdown next to the genre one (User icon), same searchable 10-row design; filters by albumArtist, no DB changes needed. Genre + artist + text search all combine.
 
 WHAT COULD BE BETTER (review 2026-07-15)
 
@@ -23,7 +27,7 @@ Robustness bugs
 Missing player features
 8. [DONE 2026-07-15] No shuffle or repeat. Added: shuffle (Fisher-Yates permutation of queue indices, current track stays first; queue add/remove keeps the order consistent) and repeat off/all/one (repeat-one replays on ended; manual next still advances). Buttons in NowPlayingBar next to prev/next.
 9. No OS media integration. No navigator.mediaSession usage, so the Windows media overlay won't show title/artist/artwork and hardware media keys aren't wired up. Small code change in usePlayer, big native-feel win.
-10. Genre isn't stored — but the roadmap needs it. "Genre filter on album" is planned, yet the tracks table has no genre column and the scanner never persists it (only the on-demand tag viewer in src/main/library/metadata.ts reads it live from the file). Needs a schema migration + scanner change first; the migration pattern in src/main/db/db.ts already handles this kind of addition.
+10. [DONE 2026-07-17] Genre isn't stored — but the roadmap needs it. Fixed: tracks.genre column (nullable TEXT, migration in db.ts), scanner persists it (multi-genre tags joined with ', ', tagless files stored as ''), and Track.genre is exposed through trackMapper/shared types. NULL marks pre-migration rows, so one plain rescan backfills existing libraries without touching file mtimes. The genre filter UI itself (roadmap item 2) is still open.
 11. Almost no keyboard shortcuts. Only Escape-to-close-fullscreen exists. Space for play/pause and arrows for seek/volume would be a quick quality-of-life win.
 
 Smaller cleanups
@@ -36,4 +40,10 @@ Smaller cleanups
 - [DONE 2026-07-16] Large-library performance (7k+ tracks lagged, delayed song start). Root cause: getTracks embedded every track's album art as a base64 data URL (hundreds of MB over IPC). Fixed: art is now served lazily as mediafile:// URLs (protocol handler gained image MIME types; artDataUrl renamed to artUrl everywhere), the Library list is virtualized (only visible rows render, ROW_HEIGHT slots in LibraryView), Up next in the queue panel is capped at 200 rows, dominantColor sets crossOrigin for the protocol-served images.
 
 
-- Config to use exclusive audio(Only the player will control the PC audio)
+
+
+SETTING TO ADD(All types should have a subsection at the setting screen)
+1. [DONE 2026-07-17] Ordenation type(Normal, Ignore specials and "The") — "Sorting" section in Settings with a two-option segmented control; persisted via registerSetting('SortMode'), defaults to Ignore specials (the previous behavior). useTrackSort reads it per mount, so all track lists (library, album, playlist) follow it.
+2. [DONE 2026-07-16] Display settings(Use or not background color by cover dominant color) — "Display" section in Settings with a toggle; persisted via registerSetting('DominantColorBg'), defaults on; gates the dominant-color background in FullscreenPlayer and LyricsView.
+3. [DONE 2026-07-17] Audio output setting — "Audio output" section in Settings with a device dropdown (System default + enumerated outputs, live-updates on devicechange); persisted via registerSetting('AudioOutput') as deviceId ('' = default). Applied with AudioContext.setSinkId in usePlayer (audio routes through the EQ graph, so the sink must be set on the context, not the <audio> element); a missing device falls back to default.
+4. Use exclusive audio(Only the player will control the PC audio)

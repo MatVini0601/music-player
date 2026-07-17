@@ -10,7 +10,7 @@ import { registerLyricsHandlers } from './library/lyrics'
 import { registerMetadataHandlers } from './library/metadata'
 import { registerHistoryHandlers } from './library/history'
 import { registerMediaProtocolPrivileges, registerMediaProtocolHandler } from './mediaProtocol'
-import type { EqBand, LibrarySort, Track, ScanResult } from '../shared/types'
+import type { EqBand, LibrarySort, SortMode, Track, ScanResult } from '../shared/types'
 
 registerMediaProtocolPrivileges()
 
@@ -193,6 +193,27 @@ function registerIpcHandlers(): void {
     fromStored: (stored) => stored === '1',
     toStored: (collapsed) => (collapsed ? '1' : '0'),
     fallback: () => false
+  })
+
+  registerSetting<boolean>('DominantColorBg', 'dominantColorBg', {
+    fromStored: (stored) => stored === '1',
+    toStored: (enabled) => (enabled ? '1' : '0'),
+    fallback: () => true
+  })
+
+  registerSetting<SortMode>('SortMode', 'sortMode', {
+    fromStored: (stored) => {
+      if (stored !== 'normal' && stored !== 'ignoreSpecials') throw new Error('invalid sort mode')
+      return stored
+    },
+    toStored: (mode) => mode,
+    fallback: () => 'ignoreSpecials'
+  })
+
+  registerSetting<string>('AudioOutput', 'audioOutput', {
+    fromStored: (stored) => stored,
+    toStored: (deviceId) => deviceId,
+    fallback: () => ''
   })
 
   registerSetting<LibrarySort | null>('LibrarySort', 'librarySort', {

@@ -62,13 +62,14 @@ export async function scanLibrary(
   }
 
   const upsertTrack = db.prepare(`
-    INSERT INTO tracks (file_path, title, artist, album, album_artist, track_no, duration_seconds, format, album_id, file_mtime_ms, last_scanned_at, added_at)
-    VALUES (@filePath, @title, @artist, @album, @albumArtist, @trackNo, @durationSeconds, @format, @albumId, @fileMtimeMs, datetime('now'), datetime('now'))
+    INSERT INTO tracks (file_path, title, artist, album, album_artist, genre, track_no, duration_seconds, format, album_id, file_mtime_ms, last_scanned_at, added_at)
+    VALUES (@filePath, @title, @artist, @album, @albumArtist, @genre, @trackNo, @durationSeconds, @format, @albumId, @fileMtimeMs, datetime('now'), datetime('now'))
     ON CONFLICT(file_path) DO UPDATE SET
       title = excluded.title,
       artist = excluded.artist,
       album = excluded.album,
       album_artist = excluded.album_artist,
+      genre = excluded.genre,
       track_no = excluded.track_no,
       duration_seconds = excluded.duration_seconds,
       format = excluded.format,
@@ -78,7 +79,7 @@ export async function scanLibrary(
   `)
 
   const getExisting = db.prepare(
-    'SELECT id, file_mtime_ms FROM tracks WHERE file_path = ?'
+    'SELECT id, file_mtime_ms, genre FROM tracks WHERE file_path = ?'
   )
 
   const upsertArt = db.prepare(`
@@ -100,9 +101,11 @@ export async function scanLibrary(
       const mtimeMs = Math.floor(fileStat.mtimeMs)
 
       const existing = getExisting.get(filePath) as
-        | { id: number; file_mtime_ms: number }
+        | { id: number; file_mtime_ms: number; genre: string | null }
         | undefined
-      if (existing && existing.file_mtime_ms === mtimeMs) {
+      // genre === null means the track was scanned before the genre column existed;
+      // re-read its tags once even though the file itself hasn't changed.
+      if (existing && existing.file_mtime_ms === mtimeMs && existing.genre !== null) {
         continue
       }
 
@@ -111,6 +114,7 @@ export async function scanLibrary(
       const common = metadata.common
       const format = extname(filePath).toLowerCase() === '.flac' ? 'flac' : 'mp3'
       const albumId = findOrCreateAlbum(db, common.album ?? '', common.albumartist ?? common.artist ?? '')
+      const genre = common.genre?.length ? common.genre.join(', ') : ''
 
       const trackId = existing
         ? existing.id
@@ -121,6 +125,7 @@ export async function scanLibrary(
               artist: common.artist ?? '',
               album: common.album ?? '',
               albumArtist: common.albumartist ?? common.artist ?? '',
+              genre,
               trackNo: common.track?.no ?? null,
               durationSeconds: metadata.format.duration ?? 0,
               format,
@@ -136,6 +141,7 @@ export async function scanLibrary(
           artist: common.artist ?? '',
           album: common.album ?? '',
           albumArtist: common.albumartist ?? common.artist ?? '',
+          genre,
           trackNo: common.track?.no ?? null,
           durationSeconds: metadata.format.duration ?? 0,
           format,

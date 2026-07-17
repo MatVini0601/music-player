@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LibrarySort, Track } from '../../shared/types'
+import type { LibrarySort, SortMode, Track } from '../../shared/types'
 
 export type TrackSortKey = LibrarySort['key']
 export type TrackSortDirection = LibrarySort['direction']
@@ -18,16 +18,19 @@ function sortableText(value: string): string {
   return stripped || value.trim()
 }
 
-function compareText(a: string, b: string): number {
+function compareText(a: string, b: string, mode: SortMode): number {
+  if (mode === 'normal') {
+    return a.trim().localeCompare(b.trim(), undefined, { sensitivity: 'base' })
+  }
   return sortableText(a).localeCompare(sortableText(b), undefined, { sensitivity: 'base' })
 }
 
-function compareTracks(a: Track, b: Track, key: TrackSortKey): number {
+function compareTracks(a: Track, b: Track, key: TrackSortKey, mode: SortMode): number {
   switch (key) {
     case 'title':
-      return compareText(a.title, b.title)
+      return compareText(a.title, b.title, mode)
     case 'album':
-      return compareText(a.album, b.album)
+      return compareText(a.album, b.album, mode)
     case 'added':
       // addedAt is "YYYY-MM-DD HH:MM:SS", so plain string comparison is chronological.
       return a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : 0
@@ -45,6 +48,13 @@ export function useTrackSort(tracks: Track[], options?: { persisted?: boolean })
   const persisted = options?.persisted ?? false
   const [sortKey, setSortKey] = useState<TrackSortKey | null>(null)
   const [sortDirection, setSortDirection] = useState<TrackSortDirection>('asc')
+  const [sortMode, setSortMode] = useState<SortMode>('ignoreSpecials')
+
+  // Views mount fresh on navigation, so reading the setting once per mount is enough
+  // to pick up changes made in Settings.
+  useEffect(() => {
+    window.api.getSortMode().then(setSortMode)
+  }, [])
 
   useEffect(() => {
     if (!persisted) return
@@ -76,10 +86,10 @@ export function useTrackSort(tracks: Track[], options?: { persisted?: boolean })
 
   const sortedTracks = useMemo(() => {
     if (!sortKey) return tracks
-    const sorted = [...tracks].sort((a, b) => compareTracks(a, b, sortKey))
+    const sorted = [...tracks].sort((a, b) => compareTracks(a, b, sortKey, sortMode))
     if (sortDirection === 'desc') sorted.reverse()
     return sorted
-  }, [tracks, sortKey, sortDirection])
+  }, [tracks, sortKey, sortDirection, sortMode])
 
   return { sortedTracks, sortKey, sortDirection, toggleSort }
 }

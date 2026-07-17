@@ -1,7 +1,10 @@
-import { FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
-import type { EqBand } from '../../shared/types'
+import { useEffect, useState } from 'react'
+import { Check, ChevronDown, FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import type { EqBand, SortMode } from '../../shared/types'
 import type { UpdateStatus } from '../hooks/useAppUpdates'
 import { EqBandsEditor } from './EqBandsEditor'
+import { PopoverMenu } from './PopoverMenu'
+import { MenuItem } from './MenuItem'
 
 const ACCENT_PRESETS = [
   '#1db954', // green
@@ -24,9 +27,62 @@ interface SettingsViewProps {
   onRemoveFolder: (path: string) => void
   accentColor: string
   onChangeAccentColor: (color: string) => void
+  dominantColorBg: boolean
+  onChangeDominantColorBg: (enabled: boolean) => void
+  sortMode: SortMode
+  onChangeSortMode: (mode: SortMode) => void
+  audioOutputId: string
+  onChangeAudioOutput: (deviceId: string) => void
   appVersion: string
   updateStatus: UpdateStatus
   onCheckForUpdates: () => void
+}
+
+const SORT_MODE_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'ignoreSpecials', label: 'Ignore specials and "The"' }
+]
+
+interface OutputDevice {
+  deviceId: string
+  label: string
+}
+
+/**
+ * Audio output devices as reported by the browser. Chromium prefixes the list with
+ * virtual "default"/"communications" entries that duplicate real devices — those are
+ * dropped; the explicit "System default" option covers that case.
+ */
+function useOutputDevices(): OutputDevice[] {
+  const [devices, setDevices] = useState<OutputDevice[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    const refresh = (): void => {
+      navigator.mediaDevices.enumerateDevices().then((all) => {
+        if (cancelled) return
+        setDevices(
+          all
+            .filter(
+              (d) =>
+                d.kind === 'audiooutput' &&
+                d.deviceId !== 'default' &&
+                d.deviceId !== 'communications'
+            )
+            .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Output device ${i + 1}` }))
+        )
+      })
+    }
+
+    refresh()
+    navigator.mediaDevices.addEventListener('devicechange', refresh)
+    return () => {
+      cancelled = true
+      navigator.mediaDevices.removeEventListener('devicechange', refresh)
+    }
+  }, [])
+
+  return devices
 }
 
 function updateStatusText(status: UpdateStatus): string {
@@ -58,12 +114,22 @@ export function SettingsView({
   onRemoveFolder,
   accentColor,
   onChangeAccentColor,
+  dominantColorBg,
+  onChangeDominantColorBg,
+  sortMode,
+  onChangeSortMode,
+  audioOutputId,
+  onChangeAudioOutput,
   appVersion,
   updateStatus,
   onCheckForUpdates
 }: SettingsViewProps) {
   const updateStatusLine = updateStatusText(updateStatus)
   const isUpdateBusy = updateStatus.phase === 'checking' || updateStatus.phase === 'downloading'
+  const outputDevices = useOutputDevices()
+  const currentOutputLabel = audioOutputId
+    ? (outputDevices.find((d) => d.deviceId === audioOutputId)?.label ?? 'Unavailable device')
+    : 'System default'
   return (
     <div className="h-full overflow-y-auto px-8 py-8">
       <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -89,6 +155,64 @@ export function SettingsView({
             onChangeBand={onChangeEqBand}
             className="w-full auto-cols-fr"
           />
+        </section>
+
+        <section className="py-8">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Audio output
+          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-300">Output device</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Where the player sends its audio. Changes apply immediately.
+              </p>
+            </div>
+            <PopoverMenu
+              width={288}
+              trigger={({ onClick }) => (
+                <button
+                  onClick={onClick}
+                  className="flex max-w-72 flex-shrink-0 items-center gap-2 rounded-md bg-white/5 py-1.5 pl-3 pr-2.5 text-sm text-gray-100 transition-colors hover:bg-white/10"
+                >
+                  <span className="truncate">{currentOutputLabel}</span>
+                  <ChevronDown size={14} className="flex-shrink-0 text-gray-500" />
+                </button>
+              )}
+            >
+              {(close) => (
+                <div className="max-h-72 overflow-y-auto">
+                  <MenuItem
+                    onClick={() => {
+                      onChangeAudioOutput('')
+                      close()
+                    }}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      System default
+                      {!audioOutputId && <Check size={14} className="flex-shrink-0 text-accent" />}
+                    </span>
+                  </MenuItem>
+                  {outputDevices.map((device) => (
+                    <MenuItem
+                      key={device.deviceId}
+                      onClick={() => {
+                        onChangeAudioOutput(device.deviceId)
+                        close()
+                      }}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate">{device.label}</span>
+                        {audioOutputId === device.deviceId && (
+                          <Check size={14} className="flex-shrink-0 text-accent" />
+                        )}
+                      </span>
+                    </MenuItem>
+                  ))}
+                </div>
+              )}
+            </PopoverMenu>
+          </div>
         </section>
 
         <section className="py-8">
@@ -131,6 +255,66 @@ export function SettingsView({
                 aria-label="Pick a custom accent color"
               />
             </label>
+          </div>
+        </section>
+
+        <section className="py-8">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Display
+          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-300">Background from album art</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Tint the fullscreen player and lyrics view with the cover&apos;s dominant color.
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={dominantColorBg}
+              aria-label="Toggle background from album art"
+              onClick={() => onChangeDominantColorBg(!dominantColorBg)}
+              className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${
+                dominantColorBg ? 'bg-accent' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                  dominantColorBg ? 'translate-x-4' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </section>
+
+        <section className="py-8">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Sorting
+          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-300">Ordering type</p>
+              <p className="mt-1 text-sm text-gray-500">
+                &quot;Ignore specials and &apos;The&apos;&quot; alphabetizes titles and albums
+                ignoring punctuation and a leading &quot;The&quot;, so &quot;(Don&apos;t Fear) The
+                Reaper&quot; sorts under D.
+              </p>
+            </div>
+            <div className="flex flex-shrink-0 gap-0.5 rounded-md bg-white/5 p-0.5">
+              {SORT_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => onChangeSortMode(option.value)}
+                  className={`rounded px-3 py-1.5 text-sm transition-colors ${
+                    sortMode === option.value
+                      ? 'bg-white/10 text-accent'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 

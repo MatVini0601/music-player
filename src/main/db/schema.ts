@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   artist TEXT NOT NULL DEFAULT '',
   album TEXT NOT NULL DEFAULT '',
   album_artist TEXT NOT NULL DEFAULT '',
+  genre TEXT,
   track_no INTEGER,
   duration_seconds REAL NOT NULL DEFAULT 0,
   format TEXT NOT NULL,

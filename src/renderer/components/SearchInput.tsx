@@ -5,13 +5,15 @@ interface SearchInputProps {
   onChange: (value: string) => void
   placeholder?: string
   className?: string
+  autoFocus?: boolean
 }
 
 export function SearchInput({
   value,
   onChange,
   placeholder = 'Search…',
-  className = 'w-56 flex-shrink-0'
+  className = 'w-56 flex-shrink-0',
+  autoFocus
 }: SearchInputProps) {
   return (
     <div className={`relative ${className}`}>
@@ -20,6 +22,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        autoFocus={autoFocus}
         className="w-full rounded-md bg-white/5 py-1.5 pl-8 pr-7 text-sm text-gray-100 outline-none placeholder:text-gray-500"
       />
       {value && (

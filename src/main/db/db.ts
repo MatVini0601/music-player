@@ -37,6 +37,14 @@ function runMigrations(db: Database.Database): void {
     // column already exists
   }
 
+  // Deliberately nullable: NULL means "never extracted", which lets the scanner re-read
+  // tags for tracks scanned before this column existed (a tagless file gets '' instead).
+  try {
+    db.exec('ALTER TABLE tracks ADD COLUMN genre TEXT')
+  } catch {
+    // column already exists
+  }
+
   // SQLite's ALTER TABLE ADD COLUMN rejects any non-constant default (including CURRENT_TIMESTAMP),
   // so the column is added nullable and backfilled in a separate, idempotent step.
   try {

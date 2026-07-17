@@ -15,6 +15,7 @@ interface FullscreenPlayerProps {
   onNext: () => void
   onPrevious: () => void
   onClose: () => void
+  dominantColorBg: boolean
 }
 
 export function FullscreenPlayer({
@@ -26,10 +27,11 @@ export function FullscreenPlayer({
   onSeek,
   onNext,
   onPrevious,
-  onClose
+  onClose,
+  dominantColorBg
 }: FullscreenPlayerProps) {
   const cover = track?.artUrl ?? null
-  const bgColor = useDominantColor(cover)
+  const bgColor = useDominantColor(dominantColorBg ? cover : null)
   const [showTags, setShowTags] = useState(false)
   const [metadata, setMetadata] = useState<TrackMetadata | null>(null)
 

@@ -7,6 +7,7 @@ import { useDominantColor } from '../hooks/useDominantColor'
 interface LyricsViewProps {
   track: Track | null
   currentTime: number
+  dominantColorBg: boolean
 }
 
 function linesToEditableText(result: LyricsResult): string {
@@ -16,13 +17,13 @@ function linesToEditableText(result: LyricsResult): string {
     .join('\n')
 }
 
-export function LyricsView({ track, currentTime }: LyricsViewProps) {
+export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewProps) {
   const [lyrics, setLyrics] = useState<LyricsResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [draftText, setDraftText] = useState('')
   const lineRefs = useRef<(HTMLDivElement | null)[]>([])
-  const heroColor = useDominantColor(track?.artUrl ?? null)
+  const heroColor = useDominantColor(dominantColorBg ? (track?.artUrl ?? null) : null)
 
   useEffect(() => {
     if (!track) {

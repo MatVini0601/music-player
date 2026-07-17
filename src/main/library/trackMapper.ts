@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3'
 import { toMediaUrl } from '../mediaProtocol'
 import type { Album, Track } from '../../shared/types'
 
-export const TRACK_COLUMNS_SQL = `t.id, t.file_path, t.title, t.artist, t.album, t.album_artist, t.track_no,
+export const TRACK_COLUMNS_SQL = `t.id, t.file_path, t.title, t.artist, t.album, t.album_artist, t.genre, t.track_no,
                 t.duration_seconds, t.format, t.user_art_path, t.added_at, ac.image_path, alb.user_art_path AS album_art_path`
 
 export const TRACK_JOINS_SQL = `LEFT JOIN art_cache ac ON ac.track_id = t.id
@@ -15,6 +15,7 @@ export interface TrackRow {
   artist: string
   album: string
   album_artist: string
+  genre: string | null
   track_no: number | null
   duration_seconds: number
   format: string
@@ -42,18 +43,35 @@ export function rowsToAlbums(db: Database, rows: AlbumRow[]): Album[] {
      LIMIT 1`
   )
 
+  const getGenres = db.prepare(
+    `SELECT DISTINCT genre FROM tracks WHERE album_id = ? AND genre IS NOT NULL AND genre != ''`
+  )
+
   return rows.map((r) => {
     const artPath =
       r.user_art_path ??
       (getFallbackArt.get(r.id) as { image_path: string } | undefined)?.image_path ??
       null
 
+    // Track genre strings can be multi-valued ("Rock, Indie"); split them and dedupe
+    // case-insensitively, keeping the first spelling seen.
+    const genresByKey = new Map<string, string>()
+    for (const row of getGenres.all(r.id) as { genre: string }[]) {
+      for (const part of row.genre.split(',')) {
+        const genre = part.trim()
+        if (genre && !genresByKey.has(genre.toLowerCase())) {
+          genresByKey.set(genre.toLowerCase(), genre)
+        }
+      }
+    }
+
     return {
       id: r.id,
       title: r.title,
       albumArtist: r.album_artist,
       trackCount: r.track_count,
-      artUrl: artPath ? toMediaUrl(artPath) : null
+      artUrl: artPath ? toMediaUrl(artPath) : null,
+      genres: [...genresByKey.values()].sort((a, b) => a.localeCompare(b))
     }
   })
 }
@@ -69,6 +87,7 @@ export function rowsToTracks(rows: TrackRow[]): Track[] {
       artist: r.artist,
       album: r.album,
       albumArtist: r.album_artist,
+      genre: r.genre ?? '',
       trackNo: r.track_no,
       durationSeconds: r.duration_seconds,
       format: r.format as 'mp3' | 'flac',

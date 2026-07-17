@@ -5,6 +5,8 @@ export interface Track {
   artist: string
   album: string
   albumArtist: string
+  /** Comma-joined when the file has multiple genre tags; '' when the file has none. */
+  genre: string
   trackNo: number | null
   durationSeconds: number
   format: 'mp3' | 'flac'
@@ -41,6 +43,8 @@ export interface Album {
   albumArtist: string
   artUrl: string | null
   trackCount: number
+  /** Distinct genres across the album's tracks, alphabetized; multi-genre tags are split. */
+  genres: string[]
 }
 
 export interface LyricsLine {
@@ -86,6 +90,9 @@ export interface LibrarySort {
   direction: 'asc' | 'desc'
 }
 
+/** How text columns alphabetize: as-is, or ignoring punctuation and a leading "The". */
+export type SortMode = 'normal' | 'ignoreSpecials'
+
 export type UpdateEvent =
   | { type: 'available'; version: string }
   | { type: 'upToDate' }
@@ -123,8 +130,15 @@ export interface LibraryApi {
   setAccentColor(color: string): Promise<void>
   getSidebarCollapsed(): Promise<boolean>
   setSidebarCollapsed(collapsed: boolean): Promise<void>
+  getDominantColorBg(): Promise<boolean>
+  setDominantColorBg(enabled: boolean): Promise<void>
   getLibrarySort(): Promise<LibrarySort | null>
   setLibrarySort(sort: LibrarySort | null): Promise<void>
+  getSortMode(): Promise<SortMode>
+  setSortMode(mode: SortMode): Promise<void>
+  /** Audio output device id; '' means the system default. */
+  getAudioOutput(): Promise<string>
+  setAudioOutput(deviceId: string): Promise<void>
   getLyrics(trackId: number): Promise<LyricsResult | null>
   setLyrics(trackId: number, text: string): Promise<LyricsResult>
   clearLyrics(trackId: number): Promise<void>

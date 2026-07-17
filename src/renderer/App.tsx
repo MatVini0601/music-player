@@ -5,6 +5,8 @@ import { usePlaylists } from './hooks/usePlaylists'
 import { useAlbums } from './hooks/useAlbums'
 import { useHomeData } from './hooks/useHomeData'
 import { useAccentColor } from './hooks/useAccentColor'
+import { useDominantColorBg } from './hooks/useDominantColorBg'
+import { useSortMode } from './hooks/useSortMode'
 import { useAppUpdates } from './hooks/useAppUpdates'
 import { UpdateModal } from './components/UpdateModal'
 import { HomeView } from './components/HomeView'
@@ -40,6 +42,8 @@ export default function App() {
   const { albums, refresh: refreshAlbums } = useAlbums()
   const { recentAlbums, recentTracks, refresh: refreshHomeData } = useHomeData()
   const { accentColor, setAccentColor } = useAccentColor()
+  const { dominantColorBg, setDominantColorBg } = useDominantColorBg()
+  const { sortMode, setSortMode } = useSortMode()
   const updates = useAppUpdates()
   const [selectedView, setSelectedView] = useState<SelectedView>({ type: 'home' })
   const [rightPanel, setRightPanel] = useState<'nowPlaying' | 'queue' | null>(null)
@@ -142,6 +146,12 @@ export default function App() {
           onRemoveFolder={handleRemoveFolder}
           accentColor={accentColor}
           onChangeAccentColor={setAccentColor}
+          dominantColorBg={dominantColorBg}
+          onChangeDominantColorBg={setDominantColorBg}
+          sortMode={sortMode}
+          onChangeSortMode={setSortMode}
+          audioOutputId={player.audioOutputId}
+          onChangeAudioOutput={player.setAudioOutput}
           appVersion={updates.appVersion}
           updateStatus={updates.status}
           onCheckForUpdates={updates.checkForUpdates}
@@ -236,7 +246,11 @@ export default function App() {
           className="flex-1 animate-fade-in overflow-hidden"
         >
           {isLyricsViewOpen ? (
-            <LyricsView track={player.currentTrack} currentTime={player.currentTime} />
+            <LyricsView
+              track={player.currentTrack}
+              currentTime={player.currentTime}
+              dominantColorBg={dominantColorBg}
+            />
           ) : (
             renderContent()
           )}
@@ -291,6 +305,7 @@ export default function App() {
           onNext={player.next}
           onPrevious={player.previous}
           onClose={() => setIsFullscreenOpen(false)}
+          dominantColorBg={dominantColorBg}
         />
       )}
       {eqTrack && (

@@ -19,6 +19,8 @@ export interface PlayerState {
   repeatMode: RepeatMode
   /** Queue indices in the order they will actually play (shuffled when shuffle is on). */
   playOrder: number[]
+  /** Selected audio output device id; '' means the system default. */
+  audioOutputId: string
 }
 
 export interface PlayerControls {
@@ -38,6 +40,18 @@ export interface PlayerControls {
   previous: () => void
   toggleShuffle: () => void
   toggleRepeat: () => void
+  setAudioOutput: (deviceId: string) => void
+}
+
+/**
+ * Audio flows through the AudioContext (EQ graph), so the output device is set on the
+ * context, not the <audio> element. '' routes back to the system default.
+ */
+function applySinkId(context: AudioContext | null, deviceId: string): void {
+  const sinkable = context as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null
+  sinkable?.setSinkId?.(deviceId).catch((error) => {
+    console.warn(`Could not switch audio output to "${deviceId}":`, error)
+  })
 }
 
 /** A permutation of queue indices starting with firstIndex (the playing track keeps playing). */
@@ -73,6 +87,7 @@ export function usePlayer(): PlayerState & PlayerControls {
   // When shuffle is on, playback follows this permutation of queue indices instead of
   // sequential order. It always contains every queue index exactly once.
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
+  const [audioOutputId, setAudioOutputId] = useState('')
 
   const currentTrack = currentIndex >= 0 ? (queue[currentIndex] ?? null) : null
 
@@ -199,6 +214,20 @@ export function usePlayer(): PlayerState & PlayerControls {
       setVolumeState(savedVolume)
       if (savedVolume > 0) lastNonZeroVolumeRef.current = savedVolume
     })
+  }, [])
+
+  useEffect(() => {
+    window.api.getAudioOutput().then((deviceId) => {
+      setAudioOutputId(deviceId)
+      // Missing device (unplugged since last run) rejects and playback stays on the default.
+      if (deviceId) applySinkId(audioContextRef.current, deviceId)
+    })
+  }, [])
+
+  const setAudioOutput = useCallback((deviceId: string) => {
+    setAudioOutputId(deviceId)
+    window.api.setAudioOutput(deviceId)
+    applySinkId(audioContextRef.current, deviceId)
   }, [])
 
   const playQueue = useCallback(
@@ -378,6 +407,7 @@ export function usePlayer(): PlayerState & PlayerControls {
     isShuffle,
     repeatMode,
     playOrder,
+    audioOutputId,
     playQueue,
     addToQueue,
     removeFromQueue,
@@ -393,6 +423,7 @@ export function usePlayer(): PlayerState & PlayerControls {
     next,
     previous,
     toggleShuffle,
-    toggleRepeat
+    toggleRepeat,
+    setAudioOutput
   }
 }
