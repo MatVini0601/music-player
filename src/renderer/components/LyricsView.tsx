@@ -22,6 +22,7 @@ export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewPr
   const [isLoading, setIsLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [draftText, setDraftText] = useState('')
+  const [embedError, setEmbedError] = useState<string | null>(null)
   const lineRefs = useRef<(HTMLDivElement | null)[]>([])
   const heroColor = useDominantColor(dominantColorBg ? (track?.artUrl ?? null) : null)
 
@@ -34,6 +35,7 @@ export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewPr
     setIsLoading(true)
     setLyrics(null)
     setIsEditing(false)
+    setEmbedError(null)
     window.api.getLyrics(track.id).then((result) => {
       setLyrics(result)
       setIsLoading(false)
@@ -60,7 +62,8 @@ export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewPr
   const saveLyrics = async (): Promise<void> => {
     if (!track) return
     const result = await window.api.setLyrics(track.id, draftText)
-    setLyrics(result)
+    setLyrics({ isSynced: result.isSynced, lines: result.lines })
+    setEmbedError(result.embedError)
     setIsEditing(false)
   }
 
@@ -121,6 +124,12 @@ export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewPr
             </>
           )}
         </div>
+      )}
+
+      {embedError && !isEditing && (
+        <p className="mb-4 flex-shrink-0 text-right text-xs text-amber-400">
+          Saved in the app, but writing to the file failed: {embedError}
+        </p>
       )}
 
       <div className="flex min-h-0 flex-1 items-start gap-10 overflow-hidden">

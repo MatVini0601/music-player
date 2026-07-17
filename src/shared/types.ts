@@ -57,6 +57,12 @@ export interface LyricsResult {
   lines: LyricsLine[]
 }
 
+export interface SaveLyricsResult extends LyricsResult {
+  /** Non-null when writing the lyrics into the audio file's tags failed (e.g. unsupported
+   *  format like WAV/WebM). The lyrics are still saved in the app's database regardless. */
+  embedError: string | null
+}
+
 export interface EqBand {
   frequency: number
   q: number
@@ -143,7 +149,7 @@ export interface LibraryApi {
   getLastSeenVersion(): Promise<string>
   setLastSeenVersion(version: string): Promise<void>
   getLyrics(trackId: number): Promise<LyricsResult | null>
-  setLyrics(trackId: number, text: string): Promise<LyricsResult>
+  setLyrics(trackId: number, text: string): Promise<SaveLyricsResult>
   clearLyrics(trackId: number): Promise<void>
   getEqBands(): Promise<EqBand[]>
   setEqBands(bands: EqBand[]): Promise<void>

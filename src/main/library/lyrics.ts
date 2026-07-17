@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname } from 'node:path'
 import type { Database } from 'better-sqlite3'
+import { File as TaglibFile } from 'node-taglib-sharp'
 import { parseLrc } from './lyricsParser'
 import { getMusicMetadata } from './musicMetadataLoader'
-import type { LyricsLine, LyricsResult } from '../../shared/types'
+import type { LyricsLine, LyricsResult, SaveLyricsResult } from '../../shared/types'
 
 function stripBom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
@@ -13,6 +14,25 @@ function stripBom(text: string): string {
 
 function toLrcPath(filePath: string): string {
   return filePath.slice(0, -extname(filePath).length) + '.lrc'
+}
+
+// Writes the lyrics text (LRC timestamps included — the convention other players read)
+// into the file's standard lyrics tag: USLT for MP3, LYRICS for FLAC/OGG, ©lyr for M4A.
+// Returns an error message instead of throwing: embedding is best-effort, and the DB copy
+// is already saved by the time this runs.
+function embedLyricsInFile(filePath: string, text: string): string | null {
+  try {
+    const file = TaglibFile.createFromPath(filePath)
+    try {
+      file.tag.lyrics = text
+      file.save()
+    } finally {
+      file.dispose()
+    }
+    return null
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
 }
 
 export function registerLyricsHandlers(db: Database): void {
@@ -47,9 +67,12 @@ export function registerLyricsHandlers(db: Database): void {
     if (!lines) {
       const { parseFile } = await getMusicMetadata()
       const metadata = await parseFile(track.file_path)
-      const lyricsTag = metadata.common.lyrics?.find((l) => l.syncText.length > 0) ?? metadata.common.lyrics?.[0]
+      // syncText can be undefined (not just empty) on USLT-only MP3 tags.
+      const lyricsTag =
+        metadata.common.lyrics?.find((l) => (l.syncText?.length ?? 0) > 0) ??
+        metadata.common.lyrics?.[0]
 
-      if (lyricsTag?.syncText.length) {
+      if (lyricsTag?.syncText?.length) {
         lines = lyricsTag.syncText.map((entry) => ({
           time: (entry.timestamp ?? 0) / 1000,
           text: entry.text ?? ''
@@ -57,11 +80,19 @@ export function registerLyricsHandlers(db: Database): void {
         isSynced = true
         source = 'embedded'
       } else if (lyricsTag?.text) {
-        lines = lyricsTag.text
-          .split(/\r?\n/)
-          .filter((line) => line.trim().length > 0)
-          .map((text) => ({ time: null, text }))
-        isSynced = false
+        // The tag may hold LRC-formatted text (that's how we and most players embed synced
+        // lyrics, since true SYLT frames only exist for MP3) — try parsing it as such first.
+        const parsedTag = parseLrc(lyricsTag.text)
+        if (parsedTag.length > 0) {
+          lines = parsedTag
+          isSynced = true
+        } else {
+          lines = lyricsTag.text
+            .split(/\r?\n/)
+            .filter((line) => line.trim().length > 0)
+            .map((text) => ({ time: null, text }))
+          isSynced = false
+        }
         source = 'embedded'
       }
     }
@@ -77,7 +108,7 @@ export function registerLyricsHandlers(db: Database): void {
 
   ipcMain.handle(
     'lyrics:setForTrack',
-    (_event, trackId: number, text: string): LyricsResult => {
+    (_event, trackId: number, text: string): SaveLyricsResult => {
       const parsed = parseLrc(text)
       const isSynced = parsed.length > 0
       const lines: LyricsLine[] = isSynced
@@ -91,7 +122,17 @@ export function registerLyricsHandlers(db: Database): void {
         'INSERT OR REPLACE INTO lyrics (track_id, source, raw_text, is_synced) VALUES (?, ?, ?, ?)'
       ).run(trackId, 'manual', JSON.stringify(lines), isSynced ? 1 : 0)
 
-      return { isSynced, lines }
+      const track = db.prepare('SELECT file_path FROM tracks WHERE id = ?').get(trackId) as
+        | { file_path: string }
+        | undefined
+      const embedError =
+        track && lines.length > 0
+          ? embedLyricsInFile(track.file_path, text)
+          : track
+            ? null
+            : 'track not found'
+
+      return { isSynced, lines, embedError }
     }
   )
 
