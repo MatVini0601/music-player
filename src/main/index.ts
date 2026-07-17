@@ -12,6 +12,17 @@ import { registerHistoryHandlers } from './library/history'
 import { registerMediaProtocolPrivileges, registerMediaProtocolHandler } from './mediaProtocol'
 import type { EqBand, LibrarySort, SortMode, Track, ScanResult } from '../shared/types'
 
+// The default userData path is derived from productName ("Fermata"), but existing installs
+// already have their library at the historical %APPDATA%\music-player — pin it so the rename
+// doesn't strand their data. Dev (npm run dev) gets its own sibling profile: sharing one
+// library.db with the installed build leaks dev-scanned tracks into the real library (and
+// mediaProtocol doesn't gate playback by extension, so the old build would play them too).
+// Must run before anything calls app.getPath('userData') (db.ts, artCache.ts, updates.ts).
+app.setPath(
+  'userData',
+  join(app.getPath('appData'), app.isPackaged ? 'music-player' : 'music-player-dev')
+)
+
 registerMediaProtocolPrivileges()
 
 let mainWindow: BrowserWindow | null = null
