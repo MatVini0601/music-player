@@ -315,6 +315,8 @@ export default function App() {
         onLyricsClick={() => setIsLyricsViewOpen((v) => !v)}
         isLyricsOpen={isLyricsViewOpen}
         onFullscreenClick={() => setIsFullscreenOpen(true)}
+        audioOutputId={player.audioOutputId}
+        onChangeAudioOutput={player.setAudioOutput}
       />
       {isFullscreenOpen && (
         <FullscreenPlayer

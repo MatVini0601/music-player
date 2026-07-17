@@ -7,9 +7,11 @@ interface PopoverMenuProps {
   children: (close: () => void) => ReactNode
   /** Menu width in pixels, used both to render it and to decide which side it opens on. */
   width?: number
+  /** 'up' anchors the menu above the trigger (for triggers near the bottom of the window). */
+  direction?: 'down' | 'up'
 }
 
-type Position = { top: number; left: number; align: 'left' | 'right' }
+type Position = { top?: number; bottom?: number; left: number; align: 'left' | 'right' }
 
 /**
  * Trigger + dropdown that renders its content on document.body via a portal, positioned
@@ -17,7 +19,7 @@ type Position = { top: number; left: number; align: 'left' | 'right' }
  * (e.g. the sidebar's backdrop-blur) that forms its own stacking context ahead of a plain z-index.
  * Opens to the right of the trigger by default, falling back to the left if there isn't room.
  */
-export function PopoverMenu({ trigger, children, width = 192 }: PopoverMenuProps) {
+export function PopoverMenu({ trigger, children, width = 192, direction = 'down' }: PopoverMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<Position | null>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
@@ -28,13 +30,17 @@ export function PopoverMenu({ trigger, children, width = 192 }: PopoverMenuProps
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
 
+    const vertical =
+      direction === 'up'
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }
     const fitsRight = rect.left + width + 8 <= window.innerWidth
     setPosition(
       fitsRight
-        ? { top: rect.bottom + 4, left: rect.left, align: 'left' }
-        : { top: rect.bottom + 4, left: rect.right - width, align: 'right' }
+        ? { ...vertical, left: rect.left, align: 'left' }
+        : { ...vertical, left: rect.right - width, align: 'right' }
     )
-  }, [isOpen, width])
+  }, [isOpen, width, direction])
 
   useEffect(() => {
     if (!isOpen) return
@@ -64,9 +70,21 @@ export function PopoverMenu({ trigger, children, width = 192 }: PopoverMenuProps
           <div
             ref={menuRef}
             onClick={(e) => e.stopPropagation()}
-            style={{ position: 'fixed', top: position.top, left: position.left, width }}
+            style={{
+              position: 'fixed',
+              top: position.top,
+              bottom: position.bottom,
+              left: position.left,
+              width
+            }}
             className={`z-50 animate-pop-in rounded-md border border-white/10 bg-surface-raised/95 p-1 shadow-2xl backdrop-blur-md ${
-              position.align === 'left' ? 'origin-top-left' : 'origin-top-right'
+              direction === 'up'
+                ? position.align === 'left'
+                  ? 'origin-bottom-left'
+                  : 'origin-bottom-right'
+                : position.align === 'left'
+                  ? 'origin-top-left'
+                  : 'origin-top-right'
             }`}
           >
             {children(() => setIsOpen(false))}

@@ -2,6 +2,7 @@ import {
   Captions,
   ListMusic,
   Maximize2,
+  MonitorSpeaker,
   Pause,
   Play,
   Repeat,
@@ -16,6 +17,8 @@ import {
 import type { Track } from '../../shared/types'
 import type { RepeatMode } from '../hooks/usePlayer'
 import { formatDuration } from '../utils/format'
+import { PopoverMenu } from './PopoverMenu'
+import { AudioOutputMenu } from './AudioOutputMenu'
 
 interface NowPlayingBarProps {
   track: Track | null
@@ -39,6 +42,8 @@ interface NowPlayingBarProps {
   onLyricsClick: () => void
   isLyricsOpen: boolean
   onFullscreenClick: () => void
+  audioOutputId: string
+  onChangeAudioOutput: (deviceId: string) => void
 }
 
 export function NowPlayingBar({
@@ -62,7 +67,9 @@ export function NowPlayingBar({
   isQueueOpen,
   onLyricsClick,
   isLyricsOpen,
-  onFullscreenClick
+  onFullscreenClick,
+  audioOutputId,
+  onChangeAudioOutput
 }: NowPlayingBarProps) {
   return (
     <div className="flex h-20 items-center gap-4 border-t border-white/5 bg-surface/90 px-4 backdrop-blur-sm">
@@ -180,6 +187,30 @@ export function NowPlayingBar({
         >
           <ListMusic size={18} />
         </button>
+        <PopoverMenu
+          width={256}
+          direction="up"
+          trigger={({ onClick }) => (
+            <button
+              onClick={onClick}
+              title="Audio output"
+              aria-label="Choose audio output device"
+              className={`flex-shrink-0 transition-colors ${
+                audioOutputId ? 'text-accent' : 'text-gray-500 hover:text-white'
+              }`}
+            >
+              <MonitorSpeaker size={18} />
+            </button>
+          )}
+        >
+          {(close) => (
+            <AudioOutputMenu
+              audioOutputId={audioOutputId}
+              onChange={onChangeAudioOutput}
+              close={close}
+            />
+          )}
+        </PopoverMenu>
         <button
           onClick={onToggleMute}
           title={volume === 0 ? 'Unmute' : 'Mute'}

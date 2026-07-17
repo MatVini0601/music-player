@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Check, ChevronDown, FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import type { EqBand, SortMode } from '../../shared/types'
 import type { UpdateStatus } from '../hooks/useAppUpdates'
+import { useOutputDevices } from '../hooks/useOutputDevices'
 import { EqBandsEditor } from './EqBandsEditor'
 import { PopoverMenu } from './PopoverMenu'
-import { MenuItem } from './MenuItem'
+import { AudioOutputMenu } from './AudioOutputMenu'
 import { ConfirmModal } from './ConfirmModal'
 
 const ACCENT_PRESETS = [
@@ -43,48 +44,6 @@ const SORT_MODE_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'normal', label: 'Normal' },
   { value: 'ignoreSpecials', label: 'Ignore specials and "The"' }
 ]
-
-interface OutputDevice {
-  deviceId: string
-  label: string
-}
-
-/**
- * Audio output devices as reported by the browser. Chromium prefixes the list with
- * virtual "default"/"communications" entries that duplicate real devices — those are
- * dropped; the explicit "System default" option covers that case.
- */
-function useOutputDevices(): OutputDevice[] {
-  const [devices, setDevices] = useState<OutputDevice[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    const refresh = (): void => {
-      navigator.mediaDevices.enumerateDevices().then((all) => {
-        if (cancelled) return
-        setDevices(
-          all
-            .filter(
-              (d) =>
-                d.kind === 'audiooutput' &&
-                d.deviceId !== 'default' &&
-                d.deviceId !== 'communications'
-            )
-            .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Output device ${i + 1}` }))
-        )
-      })
-    }
-
-    refresh()
-    navigator.mediaDevices.addEventListener('devicechange', refresh)
-    return () => {
-      cancelled = true
-      navigator.mediaDevices.removeEventListener('devicechange', refresh)
-    }
-  }, [])
-
-  return devices
-}
 
 function updateStatusText(status: UpdateStatus): string {
   switch (status.phase) {
@@ -183,35 +142,11 @@ export function SettingsView({
               )}
             >
               {(close) => (
-                <div className="max-h-72 overflow-y-auto">
-                  <MenuItem
-                    onClick={() => {
-                      onChangeAudioOutput('')
-                      close()
-                    }}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      System default
-                      {!audioOutputId && <Check size={14} className="flex-shrink-0 text-accent" />}
-                    </span>
-                  </MenuItem>
-                  {outputDevices.map((device) => (
-                    <MenuItem
-                      key={device.deviceId}
-                      onClick={() => {
-                        onChangeAudioOutput(device.deviceId)
-                        close()
-                      }}
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate">{device.label}</span>
-                        {audioOutputId === device.deviceId && (
-                          <Check size={14} className="flex-shrink-0 text-accent" />
-                        )}
-                      </span>
-                    </MenuItem>
-                  ))}
-                </div>
+                <AudioOutputMenu
+                  audioOutputId={audioOutputId}
+                  onChange={onChangeAudioOutput}
+                  close={close}
+                />
               )}
             </PopoverMenu>
           </div>
