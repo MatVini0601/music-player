@@ -1,4 +1,4 @@
-# Music Player
+# Fermata
 
 A desktop music player for Windows that plays local files (MP3, FLAC, M4A/M4B, AAC, WAV, OGG, Opus, WebM). Built with Electron, React, TypeScript, and SQLite.
 

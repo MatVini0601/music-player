@@ -32,6 +32,9 @@ function createWindow(): void {
     width: 1200,
     height: 800,
     backgroundColor: '#121212',
+    // Packaged builds take the window icon from the .exe; dev runs with Electron's
+    // default unless pointed at the repo's icon (build/ isn't inside the app bundle).
+    ...(app.isPackaged ? {} : { icon: join(__dirname, '../../build/icon.ico') }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

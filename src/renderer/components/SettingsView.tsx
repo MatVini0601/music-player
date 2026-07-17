@@ -312,7 +312,7 @@ export function SettingsView({
               Check for updates
             </button>
           </div>
-          <p className="text-sm text-gray-300">Music Player {appVersion ? `v${appVersion}` : ''}</p>
+          <p className="text-sm text-gray-300">Fermata {appVersion ? `v${appVersion}` : ''}</p>
           {updateStatusLine && (
             <p
               className={`mt-1 text-sm ${
