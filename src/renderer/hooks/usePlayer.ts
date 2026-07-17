@@ -88,6 +88,9 @@ export function usePlayer(): PlayerState & PlayerControls {
   // sequential order. It always contains every queue index exactly once.
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
   const [audioOutputId, setAudioOutputId] = useState('')
+  // Bumped on every explicit play request (playQueue/jumpTo) so re-playing the track that's
+  // already loaded restarts it — the src alone wouldn't change, so the effect wouldn't fire.
+  const [playNonce, setPlayNonce] = useState(0)
 
   const currentTrack = currentIndex >= 0 ? (queue[currentIndex] ?? null) : null
 
@@ -203,10 +206,16 @@ export function usePlayer(): PlayerState & PlayerControls {
     const audio = audioRef.current
     if (!currentTrack) return
 
-    audio.src = currentTrack.mediaUrl
+    // Same src means this is a replay of the already-loaded track — rewind instead of
+    // reassigning src, which would needlessly refetch and rebuffer the file.
+    if (audio.src === currentTrack.mediaUrl) {
+      audio.currentTime = 0
+    } else {
+      audio.src = currentTrack.mediaUrl
+    }
     audio.play().catch(() => setIsPlaying(false))
     window.api.recordPlay(currentTrack.id)
-  }, [currentTrack?.mediaUrl])
+  }, [currentTrack?.mediaUrl, playNonce])
 
   useEffect(() => {
     window.api.getVolume().then((savedVolume) => {
@@ -236,6 +245,7 @@ export function usePlayer(): PlayerState & PlayerControls {
       setHistory([])
       setQueue(tracks)
       setCurrentIndex(startIndex)
+      setPlayNonce((n) => n + 1)
       if (isShuffle) setShuffleOrder(buildShuffleOrder(tracks.length, startIndex))
     },
     [isShuffle]
@@ -278,7 +288,10 @@ export function usePlayer(): PlayerState & PlayerControls {
 
   const jumpTo = useCallback(
     (index: number) => {
-      if (index >= 0 && index < queue.length) setCurrentIndex(index)
+      if (index >= 0 && index < queue.length) {
+        setCurrentIndex(index)
+        setPlayNonce((n) => n + 1)
+      }
     },
     [queue.length]
   )
