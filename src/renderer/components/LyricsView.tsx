@@ -3,11 +3,12 @@ import { Pencil, Trash2 } from 'lucide-react'
 import type { LyricsResult, Track } from '../../shared/types'
 import { formatLrcTimestamp } from '../utils/format'
 import { useDominantColor } from '../hooks/useDominantColor'
+import { usePlaybackTime } from '../hooks/usePlaybackTime'
 
 interface LyricsViewProps {
   track: Track | null
-  currentTime: number
   dominantColorBg: boolean
+  onSeek: (time: number) => void
 }
 
 function linesToEditableText(result: LyricsResult): string {
@@ -17,7 +18,8 @@ function linesToEditableText(result: LyricsResult): string {
     .join('\n')
 }
 
-export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewProps) {
+export function LyricsView({ track, dominantColorBg, onSeek }: LyricsViewProps) {
+  const currentTime = usePlaybackTime()
   const [lyrics, setLyrics] = useState<LyricsResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -185,23 +187,28 @@ export function LyricsView({ track, currentTime, dominantColorBg }: LyricsViewPr
               </div>
             ) : (
               <div className="flex flex-col gap-3 pb-[50%]">
-                {lyrics.lines.map((line, index) => (
-                  <div
-                    key={index}
-                    ref={(el) => {
-                      lineRefs.current[index] = el
-                    }}
-                    className={`text-3xl font-medium transition-colors ${
-                      lyrics.isSynced
-                        ? index === activeIndex
-                          ? 'text-accent'
-                          : 'text-gray-500'
-                        : 'text-gray-200'
-                    }`}
-                  >
-                    {line.text}
-                  </div>
-                ))}
+                {lyrics.lines.map((line, index) => {
+                  // Timestamped lines double as seek targets; plain lyrics stay inert.
+                  const seekTime = lyrics.isSynced ? line.time : null
+                  return (
+                    <div
+                      key={index}
+                      ref={(el) => {
+                        lineRefs.current[index] = el
+                      }}
+                      onClick={seekTime !== null ? () => onSeek(seekTime) : undefined}
+                      className={`text-3xl font-medium transition-colors ${
+                        lyrics.isSynced
+                          ? index === activeIndex
+                            ? 'cursor-pointer text-accent'
+                            : `text-gray-500 ${seekTime !== null ? 'cursor-pointer hover:text-gray-300' : ''}`
+                          : 'text-gray-200'
+                      }`}
+                    >
+                      {line.text}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

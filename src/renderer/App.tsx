@@ -7,6 +7,9 @@ import { useHomeData } from './hooks/useHomeData'
 import { useAccentColor } from './hooks/useAccentColor'
 import { useDominantColorBg } from './hooks/useDominantColorBg'
 import { useSortMode } from './hooks/useSortMode'
+import { useShortcutBindings } from './hooks/useShortcutBindings'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { getPlaybackTime } from './hooks/usePlaybackTime'
 import { useAppUpdates } from './hooks/useAppUpdates'
 import { UpdateModal } from './components/UpdateModal'
 import { WhatsNewModal } from './components/WhatsNewModal'
@@ -25,6 +28,9 @@ import { SettingsView } from './components/SettingsView'
 import { TrackEqModal } from './components/TrackEqModal'
 import { Sidebar, type SelectedView } from './components/Sidebar'
 import type { Track } from '../shared/types'
+
+const SEEK_STEP_SECONDS = 5
+const VOLUME_STEP = 0.05
 
 export default function App() {
   const {
@@ -46,6 +52,7 @@ export default function App() {
   const { accentColor, setAccentColor } = useAccentColor()
   const { dominantColorBg, setDominantColorBg } = useDominantColorBg()
   const { sortMode, setSortMode } = useSortMode()
+  const { shortcuts, setShortcut, resetShortcuts } = useShortcutBindings()
   const updates = useAppUpdates()
   const [selectedView, setSelectedView] = useState<SelectedView>({ type: 'home' })
   const [rightPanel, setRightPanel] = useState<'nowPlaying' | 'queue' | null>(null)
@@ -89,6 +96,24 @@ export default function App() {
   const toggleRightPanel = (panel: 'nowPlaying' | 'queue'): void => {
     setRightPanel((current) => (current === panel ? null : panel))
   }
+
+  useKeyboardShortcuts(shortcuts, {
+    playPause: player.togglePlayPause,
+    previous: player.previous,
+    next: player.next,
+    seekBack: () => player.seek(Math.max(0, getPlaybackTime() - SEEK_STEP_SECONDS)),
+    seekForward: () =>
+      player.seek(Math.min(player.duration || 0, getPlaybackTime() + SEEK_STEP_SECONDS)),
+    // Rounding keeps repeated ±0.05 steps from drifting into long floats.
+    volumeDown: () => player.setVolume(Math.max(0, Math.round((player.volume - VOLUME_STEP) * 100) / 100)),
+    volumeUp: () => player.setVolume(Math.min(1, Math.round((player.volume + VOLUME_STEP) * 100) / 100)),
+    toggleMute: player.toggleMute,
+    toggleShuffle: player.toggleShuffle,
+    toggleRepeat: player.toggleRepeat,
+    toggleFullscreen: () => setIsFullscreenOpen((v) => !v),
+    toggleLyrics: () => setIsLyricsViewOpen((v) => !v),
+    toggleQueue: () => toggleRightPanel('queue')
+  })
 
   const handleSelectView = (view: SelectedView): void => {
     setIsLyricsViewOpen(false)
@@ -162,6 +187,7 @@ export default function App() {
           eqBands={player.eqBands}
           onChangeEqBand={player.setEqBand}
           onResetEq={player.resetEq}
+          onEqImported={player.reloadEq}
           libraryRoots={libraryRoots}
           isScanning={isScanning}
           onAddFolder={handlePickFolderAndScan}
@@ -172,6 +198,9 @@ export default function App() {
           onChangeDominantColorBg={setDominantColorBg}
           sortMode={sortMode}
           onChangeSortMode={setSortMode}
+          shortcuts={shortcuts}
+          onChangeShortcut={setShortcut}
+          onResetShortcuts={resetShortcuts}
           audioOutputId={player.audioOutputId}
           onChangeAudioOutput={player.setAudioOutput}
           appVersion={updates.appVersion}
@@ -270,8 +299,8 @@ export default function App() {
           {isLyricsViewOpen ? (
             <LyricsView
               track={player.currentTrack}
-              currentTime={player.currentTime}
               dominantColorBg={dominantColorBg}
+              onSeek={player.seek}
             />
           ) : (
             renderContent()
@@ -296,7 +325,6 @@ export default function App() {
       <NowPlayingBar
         track={player.currentTrack}
         isPlaying={player.isPlaying}
-        currentTime={player.currentTime}
         duration={player.duration}
         volume={player.volume}
         isShuffle={player.isShuffle}
@@ -322,7 +350,6 @@ export default function App() {
         <FullscreenPlayer
           track={player.currentTrack}
           isPlaying={player.isPlaying}
-          currentTime={player.currentTime}
           duration={player.duration}
           onTogglePlayPause={player.togglePlayPause}
           onSeek={player.seek}

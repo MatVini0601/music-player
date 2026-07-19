@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { Track } from '../../shared/types'
 import type { RepeatMode } from '../hooks/usePlayer'
+import { usePlaybackTime } from '../hooks/usePlaybackTime'
 import { formatDuration } from '../utils/format'
 import { PopoverMenu } from './PopoverMenu'
 import { AudioOutputMenu } from './AudioOutputMenu'
@@ -23,7 +24,6 @@ import { AudioOutputMenu } from './AudioOutputMenu'
 interface NowPlayingBarProps {
   track: Track | null
   isPlaying: boolean
-  currentTime: number
   duration: number
   volume: number
   isShuffle: boolean
@@ -49,7 +49,6 @@ interface NowPlayingBarProps {
 export function NowPlayingBar({
   track,
   isPlaying,
-  currentTime,
   duration,
   volume,
   isShuffle,
@@ -71,6 +70,7 @@ export function NowPlayingBar({
   audioOutputId,
   onChangeAudioOutput
 }: NowPlayingBarProps) {
+  const currentTime = usePlaybackTime()
   return (
     <div className="flex h-20 items-center gap-4 border-t border-white/5 bg-surface/90 px-4 backdrop-blur-sm">
       <div className="flex w-64 min-w-0 items-center gap-3">

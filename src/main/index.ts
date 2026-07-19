@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerUpdateHandlers, checkForUpdatesOnStartup } from './updates'
 import { getDb } from './db/db'
@@ -9,8 +10,10 @@ import { registerArtworkHandlers } from './library/artwork'
 import { registerLyricsHandlers } from './library/lyrics'
 import { registerMetadataHandlers } from './library/metadata'
 import { registerHistoryHandlers } from './library/history'
+import { registerEqTransferHandlers } from './library/eqTransfer'
 import { registerMediaProtocolPrivileges, registerMediaProtocolHandler } from './mediaProtocol'
 import type { EqBand, LibrarySort, SortMode, Track, ScanResult } from '../shared/types'
+import { DEFAULT_SHORTCUTS, SHORTCUT_ACTIONS, type ShortcutMap } from '../shared/shortcuts'
 
 // The default userData path is derived from productName ("Fermata"), but existing installs
 // already have their library at the historical %APPDATA%\music-player — pin it so the rename
@@ -23,18 +26,38 @@ app.setPath(
   join(app.getPath('appData'), app.isPackaged ? 'music-player' : 'music-player-dev')
 )
 
+// Windows resolves the app's name/icon in the media overlay (SMTC) and notifications by
+// matching this ID against a Start Menu shortcut. Without the call, the overlay says
+// "Unknown app". Must equal the appId electron-builder stamps on the installer's
+// shortcuts — pinned in package.json build.appId; change neither without the other.
+// Dev builds resolve against the installed Fermata's shortcut, so they show the name too.
+app.setAppUserModelId('com.electron.music-player')
+
 registerMediaProtocolPrivileges()
 
 let mainWindow: BrowserWindow | null = null
 
+/**
+ * The window icon feeds the title bar (its 16px slot) and the running-window taskbar
+ * button / Alt-Tab (24–48px slots) — each ICO size slot can hold different artwork.
+ * build/window.ico, when present, overrides the exe icon for those surfaces (shipped
+ * as resources/window.ico via build.extraResources). Without it, packaged builds fall
+ * back to the exe's embedded icon and dev falls back to the repo's app icon.
+ */
+function windowIconPath(): string | undefined {
+  const candidates = app.isPackaged
+    ? [join(process.resourcesPath, 'window.ico')]
+    : [join(__dirname, '../../build/window.ico'), join(__dirname, '../../build/icon.ico')]
+  return candidates.find((path) => existsSync(path))
+}
+
 function createWindow(): void {
+  const windowIcon = windowIconPath()
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     backgroundColor: '#121212',
-    // Packaged builds take the window icon from the .exe; dev runs with Electron's
-    // default unless pointed at the repo's icon (build/ isn't inside the app bundle).
-    ...(app.isPackaged ? {} : { icon: join(__dirname, '../../build/icon.ico') }),
+    ...(windowIcon ? { icon: windowIcon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -229,6 +252,22 @@ function registerIpcHandlers(): void {
     fallback: () => ''
   })
 
+  registerSetting<ShortcutMap>('Shortcuts', 'shortcuts', {
+    fromStored: (stored) => {
+      const parsed = JSON.parse(stored) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') throw new Error('invalid shortcuts')
+      // Merge over defaults so actions added in later versions keep their default binding.
+      const map = { ...DEFAULT_SHORTCUTS }
+      for (const action of SHORTCUT_ACTIONS) {
+        const binding = parsed[action]
+        if (typeof binding === 'string') map[action] = binding
+      }
+      return map
+    },
+    toStored: (map) => JSON.stringify(map),
+    fallback: () => ({ ...DEFAULT_SHORTCUTS })
+  })
+
   registerSetting<string>('LastSeenVersion', 'lastSeenVersion', {
     fromStored: (stored) => stored,
     toStored: (version) => version,
@@ -277,6 +316,7 @@ function registerIpcHandlers(): void {
   registerLyricsHandlers(db)
   registerMetadataHandlers(db)
   registerHistoryHandlers(db)
+  registerEqTransferHandlers(db, () => mainWindow)
 }
 
 app.whenReady().then(() => {

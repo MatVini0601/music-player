@@ -1,3 +1,5 @@
+import type { ShortcutMap } from './shortcuts'
+
 export interface Track {
   id: number
   filePath: string
@@ -68,6 +70,24 @@ export interface EqBand {
   q: number
   gain: number
 }
+
+export type EqExportResult =
+  | { status: 'saved'; filePath: string; trackCount: number }
+  | { status: 'canceled' }
+
+export type EqImportResult =
+  | {
+      status: 'imported'
+      /** Entries in the file, valid or not. */
+      totalEntries: number
+      /** Entries that matched at least one track in this library. */
+      matchedEntries: number
+      /** Distinct tracks that received an EQ (one entry can match duplicates). */
+      appliedTracks: number
+      globalApplied: boolean
+    }
+  | { status: 'canceled' }
+  | { status: 'error'; message: string }
 
 export interface TrackMetadata {
   title: string | null
@@ -145,6 +165,9 @@ export interface LibraryApi {
   /** Audio output device id; '' means the system default. */
   getAudioOutput(): Promise<string>
   setAudioOutput(deviceId: string): Promise<void>
+  /** Keyboard shortcut bindings; always a full map (unknown/missing actions get defaults). */
+  getShortcuts(): Promise<ShortcutMap>
+  setShortcuts(map: ShortcutMap): Promise<void>
   /** Last app version this user ran; '' on first launch. Drives the "What's new" popup. */
   getLastSeenVersion(): Promise<string>
   setLastSeenVersion(version: string): Promise<void>
@@ -156,6 +179,9 @@ export interface LibraryApi {
   getTrackEq(trackId: number): Promise<EqBand[] | null>
   setTrackEq(trackId: number, bands: EqBand[]): Promise<void>
   clearTrackEq(trackId: number): Promise<void>
+  /** Save/open dialogs run in the main process; both resolve after the user picks a file. */
+  exportEq(): Promise<EqExportResult>
+  importEq(): Promise<EqImportResult>
   getTrackMetadata(trackId: number): Promise<TrackMetadata | null>
   recordPlay(trackId: number): Promise<void>
   getRecentAlbums(): Promise<Album[]>

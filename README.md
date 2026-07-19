@@ -11,6 +11,8 @@ A desktop music player for Windows that plays local files (MP3, FLAC, M4A/M4B, A
 - **Equalizer** — 10-band EQ with a global setting plus per-track overrides.
 - **Home view** — recently played albums and tracks, backed by play history.
 - **Player** — queue with history, now-playing panel, fullscreen mode, custom accent color.
+- **OS integration** — the Windows media overlay shows title, artist, and artwork; hardware media keys control playback.
+- **Keyboard shortcuts** — play/pause, seek, volume, and more; every binding is customizable in Settings.
 
 ## Tech stack
 

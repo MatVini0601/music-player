@@ -1,5 +1,4 @@
-import { readdir, stat } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { access, readdir, stat } from 'node:fs/promises'
 import { join, extname, sep } from 'node:path'
 import type { Database } from 'better-sqlite3'
 import type { IPicture } from 'music-metadata'
@@ -26,6 +25,14 @@ interface ParsedTrack {
 /** How many parsed files get written per transaction. Parsing (the slow, async part) stays
  *  outside the transaction so IPC writes from the rest of the app can't interleave into it. */
 const SCAN_CHUNK_SIZE = 50
+
+/** Files parsed (and existence-checked) concurrently. Parsing is I/O-bound, so a modest
+ *  pool cuts cold-scan wall time severalfold without saturating slower disks. */
+const SCAN_CONCURRENCY = 8
+
+/** Progress IPC is throttled to this interval — per-file messages made the renderer
+ *  re-render for every one of thousands of files during a scan. */
+const PROGRESS_INTERVAL_MS = 250
 
 // Limited to formats Chromium's <audio> element can actually decode natively — this app
 // has no transcoding layer, so anything else would scan into the library but fail to play.
@@ -163,50 +170,67 @@ export async function scanLibrary(
     }
   }
 
-  for (let i = 0; i < allFiles.length; i++) {
-    const filePath = allFiles[i]
-    onProgress({ scanned: i + 1, total: allFiles.length, currentFile: filePath })
+  const { parseFile } = await getMusicMetadata()
 
-    // A single unreadable or corrupt file must not abort the whole scan — skip it and
-    // report it in the result instead.
-    try {
-      const fileStat = await stat(filePath)
-      const mtimeMs = Math.floor(fileStat.mtimeMs)
+  let processed = 0
+  let lastProgressAt = 0
+  const reportProgress = (currentFile: string): void => {
+    const now = Date.now()
+    if (processed < allFiles.length && now - lastProgressAt < PROGRESS_INTERVAL_MS) return
+    lastProgressAt = now
+    onProgress({ scanned: processed, total: allFiles.length, currentFile })
+  }
 
-      const existing = getExisting.get(filePath) as
-        | { id: number; file_mtime_ms: number; genre: string | null }
-        | undefined
-      // genre === null means the track was scanned before the genre column existed;
-      // re-read its tags once even though the file itself hasn't changed.
-      if (existing && existing.file_mtime_ms === mtimeMs && existing.genre !== null) {
-        continue
+  // A small pool of workers pulls from a shared cursor. Everything that touches shared
+  // state (pending, the DB, the counters) is synchronous, so the workers can't race —
+  // only the file I/O (stat/parseFile) actually overlaps.
+  let nextFileIndex = 0
+  const parseWorker = async (): Promise<void> => {
+    while (nextFileIndex < allFiles.length) {
+      const filePath = allFiles[nextFileIndex++]
+
+      // A single unreadable or corrupt file must not abort the whole scan — skip it and
+      // report it in the result instead.
+      try {
+        const fileStat = await stat(filePath)
+        const mtimeMs = Math.floor(fileStat.mtimeMs)
+
+        const existing = getExisting.get(filePath) as
+          | { id: number; file_mtime_ms: number; genre: string | null }
+          | undefined
+        // genre === null means the track was scanned before the genre column existed;
+        // re-read its tags once even though the file itself hasn't changed.
+        if (!(existing && existing.file_mtime_ms === mtimeMs && existing.genre !== null)) {
+          const metadata = await parseFile(filePath)
+          const common = metadata.common
+
+          pending.push({
+            filePath,
+            existingId: existing?.id ?? null,
+            mtimeMs,
+            title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
+            artist: common.artist ?? '',
+            album: common.album ?? '',
+            albumArtist: common.albumartist ?? common.artist ?? '',
+            genre: common.genre?.length ? common.genre.join(', ') : '',
+            trackNo: common.track?.no ?? null,
+            durationSeconds: metadata.format.duration ?? 0,
+            format: extname(filePath).toLowerCase().slice(1),
+            picture: common.picture?.[0]
+          })
+          if (pending.length >= SCAN_CHUNK_SIZE) flushPending()
+        }
+      } catch (error) {
+        console.warn(`Scan: failed to process ${filePath}:`, error)
+        failedFiles.push(filePath)
       }
 
-      const { parseFile } = await getMusicMetadata()
-      const metadata = await parseFile(filePath)
-      const common = metadata.common
-
-      pending.push({
-        filePath,
-        existingId: existing?.id ?? null,
-        mtimeMs,
-        title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-        artist: common.artist ?? '',
-        album: common.album ?? '',
-        albumArtist: common.albumartist ?? common.artist ?? '',
-        genre: common.genre?.length ? common.genre.join(', ') : '',
-        trackNo: common.track?.no ?? null,
-        durationSeconds: metadata.format.duration ?? 0,
-        format: extname(filePath).toLowerCase().slice(1),
-        picture: common.picture?.[0]
-      })
-      if (pending.length >= SCAN_CHUNK_SIZE) flushPending()
-    } catch (error) {
-      console.warn(`Scan: failed to process ${filePath}:`, error)
-      failedFiles.push(filePath)
+      processed++
+      reportProgress(filePath)
     }
   }
 
+  await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, parseWorker))
   flushPending()
 
   const allTracks = db.prepare('SELECT id, file_path FROM tracks').all() as {
@@ -214,21 +238,34 @@ export async function scanLibrary(
     file_path: string
   }[]
 
-  const deleteTrack = db.prepare('DELETE FROM tracks WHERE id = ?')
-  let removed = 0
-
   // Tracks under a directory we couldn't read (unplugged drive, permission denied) look
-  // missing to existsSync but may well still exist — deleting them would silently wipe
-  // that part of the library. Leave them alone until the directory is readable again.
+  // missing but may well still exist — deleting them would silently wipe that part of
+  // the library. Leave them alone until the directory is readable again.
   const unreadablePrefixes = unreadableDirs.map((dir) => dir.replace(/[\\/]+$/, '') + sep)
 
-  for (const track of allTracks) {
-    if (unreadablePrefixes.some((prefix) => track.file_path.startsWith(prefix))) continue
-    if (!existsSync(track.file_path)) {
-      deleteTrack.run(track.id)
-      removed++
+  // Async existence checks: the old sync loop stat'ed every library file back to back on
+  // the main process, which could freeze all IPC for seconds on a slow or waking disk.
+  const missingIds: number[] = []
+  let nextTrackIndex = 0
+  const checkWorker = async (): Promise<void> => {
+    while (nextTrackIndex < allTracks.length) {
+      const track = allTracks[nextTrackIndex++]
+      if (unreadablePrefixes.some((prefix) => track.file_path.startsWith(prefix))) continue
+      try {
+        await access(track.file_path)
+      } catch {
+        missingIds.push(track.id)
+      }
     }
   }
+  await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, checkWorker))
+
+  const deleteTrack = db.prepare('DELETE FROM tracks WHERE id = ?')
+  const deleteMissing = db.transaction((ids: number[]) => {
+    for (const id of ids) deleteTrack.run(id)
+  })
+  if (missingIds.length > 0) deleteMissing(missingIds)
+  const removed = missingIds.length
 
   // Albums left with no tracks (e.g. a file's album/album-artist tag changed between scans,
   // moving it to a different album row) are orphaned and would otherwise linger forever.

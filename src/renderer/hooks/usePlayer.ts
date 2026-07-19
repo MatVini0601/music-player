@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Track } from '../../shared/types'
 import { createDefaultEqBands, type EqBand } from '../utils/eq'
+import { publishPlaybackTime } from './usePlaybackTime'
 
 export type RepeatMode = 'off' | 'all' | 'one'
 
@@ -10,7 +11,8 @@ export interface PlayerState {
   currentTrack: Track | null
   history: Track[]
   isPlaying: boolean
-  currentTime: number
+  /** Playback position deliberately isn't here — subscribe via usePlaybackTime() instead,
+   *  so only position-rendering components pay for the 4×/s ticks. */
   duration: number
   volume: number
   eqBands: EqBand[]
@@ -36,6 +38,9 @@ export interface PlayerControls {
   resetEq: () => void
   setTrackEq: (trackId: number, bands: EqBand[]) => void
   clearTrackEq: (trackId: number) => void
+  /** Re-reads the global EQ and the current track's override from the DB — call after
+   *  anything changes them behind React's back (e.g. importing an EQ file). */
+  reloadEq: () => void
   next: () => void
   previous: () => void
   toggleShuffle: () => void
@@ -72,7 +77,6 @@ export function usePlayer(): PlayerState & PlayerControls {
   const [queue, setQueue] = useState<Track[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(1)
   const lastNonZeroVolumeRef = useRef(1)
@@ -184,7 +188,7 @@ export function usePlayer(): PlayerState & PlayerControls {
 
   useEffect(() => {
     const audio = audioRef.current
-    const onTimeUpdate = (): void => setCurrentTime(audio.currentTime)
+    const onTimeUpdate = (): void => publishPlaybackTime(audio.currentTime)
     const onLoadedMetadata = (): void => setDuration(audio.duration)
     const onPlay = (): void => setIsPlaying(true)
     const onPause = (): void => setIsPlaying(false)
@@ -213,6 +217,7 @@ export function usePlayer(): PlayerState & PlayerControls {
     } else {
       audio.src = currentTrack.mediaUrl
     }
+    publishPlaybackTime(0)
     audio.play().catch(() => setIsPlaying(false))
     window.api.recordPlay(currentTrack.id)
   }, [currentTrack?.mediaUrl, playNonce])
@@ -304,7 +309,7 @@ export function usePlayer(): PlayerState & PlayerControls {
 
   const seek = useCallback((time: number) => {
     audioRef.current.currentTime = time
-    setCurrentTime(time)
+    publishPlaybackTime(time)
   }, [])
 
   const setVolume = useCallback((v: number) => {
@@ -348,6 +353,13 @@ export function usePlayer(): PlayerState & PlayerControls {
     [currentTrack]
   )
 
+  const reloadEq = useCallback(() => {
+    window.api.getEqBands().then(setEqBandsState)
+    if (currentTrack) {
+      window.api.getTrackEq(currentTrack.id).then(setTrackEqBands)
+    }
+  }, [currentTrack])
+
   const next = useCallback(() => {
     setCurrentIndex((i) => {
       if (queue.length === 0) return i
@@ -389,6 +401,129 @@ export function usePlayer(): PlayerState & PlayerControls {
     setRepeatMode((mode) => (mode === 'off' ? 'all' : mode === 'all' ? 'one' : 'off'))
   }, [])
 
+  // --- OS media integration (Windows media overlay + hardware media keys) ---
+  // Chromium routes hardware media keys and the system transport controls to the page's
+  // media session; feeding it metadata/state is all that's needed to look native.
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    if (!currentTrack) {
+      navigator.mediaSession.metadata = null
+      return
+    }
+
+    let cancelled = false
+    const setMetadata = (artwork: MediaImage[]): void => {
+      if (cancelled) return
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album,
+        artwork
+      })
+    }
+
+    // Text first so the overlay never waits on the image.
+    setMetadata([])
+
+    // Two Chromium constraints, both silent when violated: the media-image loader only
+    // fetches http(s)/data/blob (mediafile:// is dropped), and every candidate is scored
+    // by MIME type BEFORE download — no `type` and no file extension in the URL means
+    // score 0 and the image is discarded. So: fetch through the protocol ourselves,
+    // inline as data:, and always declare the type.
+    if (currentTrack.artUrl) {
+      fetch(currentTrack.artUrl)
+        .then((response) => response.blob())
+        .then(
+          (blob) =>
+            new Promise<{ dataUrl: string; type: string }>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () =>
+                resolve({ dataUrl: reader.result as string, type: blob.type || 'image/jpeg' })
+              reader.onerror = () => reject(reader.error)
+              reader.readAsDataURL(blob)
+            })
+        )
+        .then(({ dataUrl, type }) => setMetadata([{ src: dataUrl, sizes: '512x512', type }]))
+        .catch((error) => {
+          console.warn('Media overlay artwork failed:', error)
+        })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentTrack])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = currentTrack
+      ? isPlaying
+        ? 'playing'
+        : 'paused'
+      : 'none'
+  }, [currentTrack, isPlaying])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const session = navigator.mediaSession
+    const audio = audioRef.current
+
+    session.setActionHandler('play', () => audio.play().catch(() => {}))
+    session.setActionHandler('pause', () => audio.pause())
+    session.setActionHandler('previoustrack', previous)
+    session.setActionHandler('nexttrack', next)
+    session.setActionHandler('seekto', (details) => {
+      if (details.seekTime != null) seek(details.seekTime)
+    })
+    session.setActionHandler('seekbackward', (details) =>
+      seek(Math.max(0, audio.currentTime - (details.seekOffset ?? 10)))
+    )
+    session.setActionHandler('seekforward', (details) =>
+      seek(Math.min(audio.duration || 0, audio.currentTime + (details.seekOffset ?? 10)))
+    )
+
+    return () => {
+      session.setActionHandler('play', null)
+      session.setActionHandler('pause', null)
+      session.setActionHandler('previoustrack', null)
+      session.setActionHandler('nexttrack', null)
+      session.setActionHandler('seekto', null)
+      session.setActionHandler('seekbackward', null)
+      session.setActionHandler('seekforward', null)
+    }
+  }, [previous, next, seek])
+
+  // Keeps the OS seek bar honest; between updates the OS extrapolates from playbackRate,
+  // so only real discontinuities (new track, seeks) need reporting.
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const audio = audioRef.current
+    const updatePositionState = (): void => {
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration,
+        playbackRate: audio.playbackRate,
+        position: Math.min(audio.currentTime, audio.duration)
+      })
+    }
+
+    // play/pause included: the OS extrapolates position from the last snapshot while
+    // playing, so every stop/start of that clock needs a fresh, accurate snapshot.
+    audio.addEventListener('loadedmetadata', updatePositionState)
+    audio.addEventListener('seeked', updatePositionState)
+    audio.addEventListener('ratechange', updatePositionState)
+    audio.addEventListener('play', updatePositionState)
+    audio.addEventListener('pause', updatePositionState)
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', updatePositionState)
+      audio.removeEventListener('seeked', updatePositionState)
+      audio.removeEventListener('ratechange', updatePositionState)
+      audio.removeEventListener('play', updatePositionState)
+      audio.removeEventListener('pause', updatePositionState)
+    }
+  }, [])
+
   useEffect(() => {
     const audio = audioRef.current
     const onEnded = (): void => {
@@ -412,7 +547,6 @@ export function usePlayer(): PlayerState & PlayerControls {
     currentTrack,
     history,
     isPlaying,
-    currentTime,
     duration,
     volume,
     eqBands,
@@ -433,6 +567,7 @@ export function usePlayer(): PlayerState & PlayerControls {
     resetEq,
     setTrackEq,
     clearTrackEq,
+    reloadEq,
     next,
     previous,
     toggleShuffle,

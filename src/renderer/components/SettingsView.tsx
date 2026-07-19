@@ -1,7 +1,18 @@
-import { useState } from 'react'
-import { ChevronDown, FolderPlus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  ChevronDown,
+  Download,
+  FolderPlus,
+  Info,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  Upload
+} from 'lucide-react'
 import type { EqBand, SortMode } from '../../shared/types'
+import type { ShortcutAction, ShortcutMap } from '../../shared/shortcuts'
 import type { UpdateStatus } from '../hooks/useAppUpdates'
+import { eventToBinding, formatBinding } from '../utils/shortcuts'
 import { useOutputDevices } from '../hooks/useOutputDevices'
 import { EqBandsEditor } from './EqBandsEditor'
 import { PopoverMenu } from './PopoverMenu'
@@ -33,6 +44,10 @@ interface SettingsViewProps {
   onChangeDominantColorBg: (enabled: boolean) => void
   sortMode: SortMode
   onChangeSortMode: (mode: SortMode) => void
+  onEqImported: () => void
+  shortcuts: ShortcutMap
+  onChangeShortcut: (action: ShortcutAction, binding: string) => void
+  onResetShortcuts: () => void
   audioOutputId: string
   onChangeAudioOutput: (deviceId: string) => void
   appVersion: string
@@ -43,6 +58,22 @@ interface SettingsViewProps {
 const SORT_MODE_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'normal', label: 'Normal' },
   { value: 'ignoreSpecials', label: 'Ignore specials and "The"' }
+]
+
+const SHORTCUT_ROWS: { action: ShortcutAction; label: string }[] = [
+  { action: 'playPause', label: 'Play / pause' },
+  { action: 'previous', label: 'Previous track' },
+  { action: 'next', label: 'Next track' },
+  { action: 'seekBack', label: 'Seek back 5 seconds' },
+  { action: 'seekForward', label: 'Seek forward 5 seconds' },
+  { action: 'volumeDown', label: 'Volume down' },
+  { action: 'volumeUp', label: 'Volume up' },
+  { action: 'toggleMute', label: 'Mute / unmute' },
+  { action: 'toggleShuffle', label: 'Toggle shuffle' },
+  { action: 'toggleRepeat', label: 'Cycle repeat mode' },
+  { action: 'toggleFullscreen', label: 'Fullscreen player' },
+  { action: 'toggleLyrics', label: 'Lyrics view' },
+  { action: 'toggleQueue', label: 'Queue panel' }
 ]
 
 function updateStatusText(status: UpdateStatus): string {
@@ -78,6 +109,10 @@ export function SettingsView({
   onChangeDominantColorBg,
   sortMode,
   onChangeSortMode,
+  onEqImported,
+  shortcuts,
+  onChangeShortcut,
+  onResetShortcuts,
   audioOutputId,
   onChangeAudioOutput,
   appVersion,
@@ -91,6 +126,67 @@ export function SettingsView({
     ? (outputDevices.find((d) => d.deviceId === audioOutputId)?.label ?? 'Unavailable device')
     : 'System default'
   const [removingFolder, setRemovingFolder] = useState<string | null>(null)
+  const [rebindingAction, setRebindingAction] = useState<ShortcutAction | null>(null)
+  const [eqTransferStatus, setEqTransferStatus] = useState<{
+    text: string
+    isError: boolean
+  } | null>(null)
+  const [showEqTransferHelp, setShowEqTransferHelp] = useState(false)
+
+  const handleExportEq = async (): Promise<void> => {
+    const result = await window.api.exportEq()
+    if (result.status === 'canceled') return
+    setEqTransferStatus({
+      text:
+        result.trackCount === 0
+          ? 'Exported the global EQ. No tracks had their own EQ set.'
+          : `Exported the global EQ and ${result.trackCount} per-track EQ${result.trackCount === 1 ? '' : 's'}.`,
+      isError: false
+    })
+  }
+
+  const handleImportEq = async (): Promise<void> => {
+    const result = await window.api.importEq()
+    if (result.status === 'canceled') return
+    if (result.status === 'error') {
+      setEqTransferStatus({ text: result.message, isError: true })
+      return
+    }
+    onEqImported()
+    const unmatched = result.totalEntries - result.matchedEntries
+    const parts: string[] = []
+    if (result.globalApplied) parts.push('global EQ applied')
+    if (result.appliedTracks > 0) {
+      parts.push(`EQ set on ${result.appliedTracks} track${result.appliedTracks === 1 ? '' : 's'}`)
+    }
+    if (unmatched > 0) parts.push(`${unmatched} entr${unmatched === 1 ? 'y' : 'ies'} matched no track in this library`)
+    setEqTransferStatus({
+      text: parts.length > 0 ? `Imported — ${parts.join(', ')}.` : 'The file contained no EQ settings to import.',
+      isError: false
+    })
+  }
+
+  // While rebinding, the next keypress becomes the new binding. Capture phase +
+  // preventDefault keeps the press away from the global shortcut handler (it skips
+  // defaultPrevented events) and from activating the focused button.
+  useEffect(() => {
+    if (!rebindingAction) return
+    const onKeyDown = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'Escape') {
+        setRebindingAction(null)
+        return
+      }
+      const binding = eventToBinding(e)
+      if (!binding) return // a lone modifier — keep waiting for the real key
+      onChangeShortcut(rebindingAction, binding)
+      setRebindingAction(null)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [rebindingAction, onChangeShortcut])
+
   return (
     <div className="h-full overflow-y-auto px-8 py-8">
       <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -101,21 +197,78 @@ export function SettingsView({
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
               Equalizer
             </h2>
-            <button
-              onClick={onResetEq}
-              title="Reset"
-              aria-label="Reset equalizer"
-              className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowEqTransferHelp((v) => !v)}
+                title="How export and import work"
+                aria-label="How export and import work"
+                aria-expanded={showEqTransferHelp}
+                className={`flex items-center gap-1.5 text-sm transition-colors ${
+                  showEqTransferHelp ? 'text-accent' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Info size={14} />
+              </button>
+              <button
+                onClick={handleExportEq}
+                title="Export the global and per-track EQ settings to a file"
+                aria-label="Export equalizer settings"
+                className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                <Download size={14} />
+                Export
+              </button>
+              <button
+                onClick={handleImportEq}
+                title="Import EQ settings from an exported file"
+                aria-label="Import equalizer settings"
+                className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                <Upload size={14} />
+                Import
+              </button>
+              <button
+                onClick={onResetEq}
+                title="Reset"
+                aria-label="Reset equalizer"
+                className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                <RotateCcw size={14} />
+                Reset
+              </button>
+            </div>
           </div>
+          {showEqTransferHelp && (
+            <div className="mb-6 rounded-md bg-white/5 p-4 text-sm text-gray-400">
+              <p>
+                <span className="text-gray-300">Export</span> saves your global EQ and every
+                per-track EQ into a single file you can copy to another PC.
+              </p>
+              <p className="mt-2">
+                <span className="text-gray-300">Import</span> reads that file and applies the
+                global EQ right away. Each per-track EQ is then matched to the library on this
+                PC: first by the exact file location, and if the files live somewhere else here,
+                by their tags — same title, artist, and album, with a similar duration.
+              </p>
+              <p className="mt-2">
+                Songs from the file that aren&apos;t in this library yet are skipped and counted,
+                not lost — add them to the library and import the same file again. Importing
+                never changes the file or your music.
+              </p>
+            </div>
+          )}
           <EqBandsEditor
             bands={eqBands}
             onChangeBand={onChangeEqBand}
             className="w-full auto-cols-fr"
           />
+          {eqTransferStatus && (
+            <p
+              className={`mt-4 text-sm ${eqTransferStatus.isError ? 'text-amber-500' : 'text-gray-500'}`}
+            >
+              {eqTransferStatus.text}
+            </p>
+          )}
         </section>
 
         <section className="py-8">
@@ -252,6 +405,52 @@ export function SettingsView({
                 </button>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="py-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Keyboard shortcuts
+            </h2>
+            <button
+              onClick={onResetShortcuts}
+              className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+            >
+              <RotateCcw size={14} />
+              Reset to defaults
+            </button>
+          </div>
+          <p className="mb-4 text-sm text-gray-500">
+            Click a shortcut, then press the new key combination — Esc cancels. Assigning a key
+            that is already in use unbinds it from the other action.
+          </p>
+          <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+            {SHORTCUT_ROWS.map(({ action, label }) => {
+              const isRebinding = rebindingAction === action
+              const binding = shortcuts[action]
+              return (
+                <div
+                  key={action}
+                  className="-mx-3 flex items-center justify-between gap-4 rounded-md px-3 py-2 transition-colors hover:bg-white/5"
+                >
+                  <span className="text-sm text-gray-300">{label}</span>
+                  <button
+                    onClick={() => setRebindingAction(isRebinding ? null : action)}
+                    aria-label={`Change shortcut for ${label}`}
+                    className={`flex-shrink-0 rounded-md px-2.5 py-1 font-mono text-xs transition-colors ${
+                      isRebinding
+                        ? 'bg-white/10 text-accent ring-1 ring-accent'
+                        : binding
+                          ? 'bg-white/5 text-gray-100 hover:bg-white/10'
+                          : 'bg-white/5 italic text-gray-500 hover:bg-white/10'
+                    }`}
+                  >
+                    {isRebinding ? 'Press a key…' : binding ? formatBinding(binding) : 'Not set'}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </section>
 

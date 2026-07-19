@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { Playlist, Track } from '../../shared/types'
 import { TrackListRow } from './TrackListRow'
@@ -83,14 +83,18 @@ export function LibraryView({
   }, [])
 
   const query = searchQuery.trim().toLowerCase()
-  const filteredTracks = query
-    ? sortedTracks.filter(
-        (t) =>
-          t.title.toLowerCase().includes(query) ||
-          t.artist.toLowerCase().includes(query) ||
-          t.album.toLowerCase().includes(query)
-      )
-    : sortedTracks
+  const filteredTracks = useMemo(
+    () =>
+      query
+        ? sortedTracks.filter(
+            (t) =>
+              t.title.toLowerCase().includes(query) ||
+              t.artist.toLowerCase().includes(query) ||
+              t.album.toLowerCase().includes(query)
+          )
+        : sortedTracks,
+    [sortedTracks, query]
+  )
 
   return (
     <div className="flex h-full flex-col">

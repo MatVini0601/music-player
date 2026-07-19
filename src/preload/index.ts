@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { EqBand, LibraryApi, LibrarySort, ScanProgress, SortMode, UpdateEvent } from '../shared/types'
+import type { ShortcutMap } from '../shared/shortcuts'
 
 const api: LibraryApi = {
   pickFolder: () => ipcRenderer.invoke('library:pickFolder'),
@@ -51,6 +52,8 @@ const api: LibraryApi = {
   setSortMode: (mode: SortMode) => ipcRenderer.invoke('settings:setSortMode', mode),
   getAudioOutput: () => ipcRenderer.invoke('settings:getAudioOutput'),
   setAudioOutput: (deviceId: string) => ipcRenderer.invoke('settings:setAudioOutput', deviceId),
+  getShortcuts: () => ipcRenderer.invoke('settings:getShortcuts'),
+  setShortcuts: (map: ShortcutMap) => ipcRenderer.invoke('settings:setShortcuts', map),
   getLastSeenVersion: () => ipcRenderer.invoke('settings:getLastSeenVersion'),
   setLastSeenVersion: (version: string) =>
     ipcRenderer.invoke('settings:setLastSeenVersion', version),
@@ -64,6 +67,8 @@ const api: LibraryApi = {
   setTrackEq: (trackId: number, bands: EqBand[]) =>
     ipcRenderer.invoke('trackEq:set', trackId, bands),
   clearTrackEq: (trackId: number) => ipcRenderer.invoke('trackEq:clear', trackId),
+  exportEq: () => ipcRenderer.invoke('eq:export'),
+  importEq: () => ipcRenderer.invoke('eq:import'),
   getTrackMetadata: (trackId: number) => ipcRenderer.invoke('library:getTrackMetadata', trackId),
   recordPlay: (trackId: number) => ipcRenderer.invoke('history:recordPlay', trackId),
   getRecentAlbums: () => ipcRenderer.invoke('library:getRecentAlbums'),

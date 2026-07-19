@@ -158,14 +158,18 @@ export function AlbumGridView({ albums, onSelectAlbum }: AlbumGridViewProps) {
   const query = searchQuery.trim().toLowerCase()
   const genreKey = genreFilter?.toLowerCase()
   const artistKey = artistFilter?.toLowerCase()
-  const filteredAlbums = albums.filter((a) => {
-    if (genreKey && !a.genres.some((g) => g.toLowerCase() === genreKey)) return false
-    if (artistKey && a.albumArtist.trim().toLowerCase() !== artistKey) return false
-    if (query && !a.title.toLowerCase().includes(query) && !a.albumArtist.toLowerCase().includes(query)) {
-      return false
-    }
-    return true
-  })
+  const filteredAlbums = useMemo(
+    () =>
+      albums.filter((a) => {
+        if (genreKey && !a.genres.some((g) => g.toLowerCase() === genreKey)) return false
+        if (artistKey && a.albumArtist.trim().toLowerCase() !== artistKey) return false
+        if (query && !a.title.toLowerCase().includes(query) && !a.albumArtist.toLowerCase().includes(query)) {
+          return false
+        }
+        return true
+      }),
+    [albums, query, genreKey, artistKey]
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -238,7 +242,13 @@ export function AlbumGridView({ albums, onSelectAlbum }: AlbumGridViewProps) {
               >
                 <div className="aspect-square w-full overflow-hidden rounded bg-white/5">
                   {album.artUrl && (
-                    <img src={album.artUrl} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={album.artUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
                   )}
                 </div>
                 <div className="min-w-0 w-full">

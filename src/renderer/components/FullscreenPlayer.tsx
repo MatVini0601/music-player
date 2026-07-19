@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { Info, Pause, Play, SkipBack, SkipForward, X } from 'lucide-react'
 import type { Track, TrackMetadata } from '../../shared/types'
 import { useDominantColor } from '../hooks/useDominantColor'
+import { usePlaybackTime } from '../hooks/usePlaybackTime'
 import { formatDuration } from '../utils/format'
 import { TrackTagsList } from './TrackTagsList'
 
 interface FullscreenPlayerProps {
   track: Track | null
   isPlaying: boolean
-  currentTime: number
   duration: number
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
@@ -21,7 +21,6 @@ interface FullscreenPlayerProps {
 export function FullscreenPlayer({
   track,
   isPlaying,
-  currentTime,
   duration,
   onTogglePlayPause,
   onSeek,
@@ -30,6 +29,7 @@ export function FullscreenPlayer({
   onClose,
   dominantColorBg
 }: FullscreenPlayerProps) {
+  const currentTime = usePlaybackTime()
   const cover = track?.artUrl ?? null
   const bgColor = useDominantColor(dominantColorBg ? cover : null)
   const [showTags, setShowTags] = useState(false)
