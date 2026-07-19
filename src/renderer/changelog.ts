@@ -4,6 +4,18 @@
  * Versions without an entry simply show no popup.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '0.2.7': [
+    'Fermata now appears in the Windows media overlay with its name, the song title, artist, cover art, and a progress bar — and your keyboard’s media keys control playback.',
+    'Keyboard shortcuts: Space plays/pauses, arrows seek and change the volume, Ctrl+arrows switch tracks, plus keys for mute, shuffle, repeat, fullscreen, lyrics, and the queue.',
+    'Every shortcut can be rebound in Settings → Keyboard shortcuts.',
+    'The installer now asks where to install Fermata. Existing installs keep their folder on update.',
+    'Fermata uses far less CPU while music plays.',
+    'Library scans are several times faster, and the app stays smooth while they run.',
+    'The Albums view opens faster — covers now load as you scroll.',
+    'Export and import your equalizer settings — the global EQ and every per-track EQ — from Settings → Equalizer. Handy for moving Fermata to another PC.',
+    'Click a line in synced lyrics to jump to that moment of the song.',
+    'A new app icon, shown everywhere — window, taskbar, Start Menu, and the volume mixer.'
+  ],
   '0.2.6': [
     'The player has a name now: Fermata — with its own icon.',
     'More formats: M4A, M4B, AAC, WAV, OGG, Opus, and WebM files are scanned and played alongside MP3 and FLAC.',
