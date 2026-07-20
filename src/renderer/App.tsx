@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLibrary } from './hooks/useLibrary'
 import { usePlayer } from './hooks/usePlayer'
 import { usePlaylists } from './hooks/usePlaylists'
@@ -19,6 +19,9 @@ import { LibraryView } from './components/LibraryView'
 import { PlaylistView } from './components/PlaylistView'
 import { AlbumGridView } from './components/AlbumGridView'
 import { AlbumView } from './components/AlbumView'
+import { ArtistGridView } from './components/ArtistGridView'
+import { ArtistView } from './components/ArtistView'
+import { deriveArtists } from './utils/artists'
 import { NowPlayingBar } from './components/NowPlayingBar'
 import { NowPlayingPanel } from './components/NowPlayingPanel'
 import { QueuePanel } from './components/QueuePanel'
@@ -48,6 +51,7 @@ export default function App() {
   const { playlists, refresh, createPlaylist, renamePlaylist, deletePlaylist, setPlaylistDescription } =
     usePlaylists()
   const { albums, refresh: refreshAlbums } = useAlbums()
+  const artists = useMemo(() => deriveArtists(albums), [albums])
   const { recentAlbums, recentTracks, refresh: refreshHomeData } = useHomeData()
   const { accentColor, setAccentColor } = useAccentColor()
   const { dominantColorBg, setDominantColorBg } = useDominantColorBg()
@@ -164,6 +168,9 @@ export default function App() {
   const selectedAlbum =
     selectedView.type === 'album' ? albums.find((a) => a.id === selectedView.id) : null
 
+  const selectedArtist =
+    selectedView.type === 'artist' ? artists.find((a) => a.key === selectedView.id) : null
+
   const renderContent = (): JSX.Element => {
     if (selectedView.type === 'home') {
       return (
@@ -218,6 +225,7 @@ export default function App() {
           isPlaying={player.isPlaying}
           onPlayQueue={player.playQueue}
           onTogglePlayPause={player.togglePlayPause}
+          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
           onAddToQueue={player.addToQueue}
           onOpenTrackEq={setEqTrack}
           onSetDescription={setPlaylistDescription}
@@ -230,6 +238,27 @@ export default function App() {
       return (
         <AlbumGridView
           albums={albums}
+          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+        />
+      )
+    }
+
+    if (selectedView.type === 'artists') {
+      return (
+        <ArtistGridView
+          artists={artists}
+          sortMode={sortMode}
+          onSelectArtist={(key) => setSelectedView({ type: 'artist', id: key })}
+        />
+      )
+    }
+
+    if (selectedView.type === 'artist' && selectedArtist) {
+      return (
+        <ArtistView
+          artist={selectedArtist}
+          albums={albums}
+          sortMode={sortMode}
           onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
         />
       )
@@ -264,6 +293,7 @@ export default function App() {
         onRescan={handleRescan}
         onPlayQueue={player.playQueue}
         onTogglePlayPause={player.togglePlayPause}
+        onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
         onAddToQueue={player.addToQueue}
         onOpenTrackEq={setEqTrack}
         onAddTrackToExistingPlaylist={handleAddToExistingPlaylist}
@@ -290,6 +320,7 @@ export default function App() {
               : selectedView.type === 'home' ||
                   selectedView.type === 'library' ||
                   selectedView.type === 'albums' ||
+                  selectedView.type === 'artists' ||
                   selectedView.type === 'settings'
                 ? selectedView.type
                 : `${selectedView.type}-${selectedView.id}`
@@ -338,6 +369,8 @@ export default function App() {
         onToggleShuffle={player.toggleShuffle}
         onToggleRepeat={player.toggleRepeat}
         onCoverClick={() => toggleRightPanel('nowPlaying')}
+        onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+        onSelectArtist={(key) => setSelectedView({ type: 'artist', id: key })}
         onQueueClick={() => toggleRightPanel('queue')}
         isQueueOpen={rightPanel === 'queue'}
         onLyricsClick={() => setIsLyricsViewOpen((v) => !v)}

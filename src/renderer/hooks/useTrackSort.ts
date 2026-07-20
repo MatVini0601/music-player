@@ -10,7 +10,7 @@ export type TrackSortDirection = LibrarySort['direction']
  * Symbol-only titles ("★", "?") would normalize to nothing, so they keep
  * their original text and group at the top.
  */
-function sortableText(value: string): string {
+export function sortableText(value: string): string {
   const stripped = value
     .replace(/[^\p{L}\p{N}\s]/gu, '')
     .replace(/^\s*the\s+/i, '')
@@ -18,7 +18,7 @@ function sortableText(value: string): string {
   return stripped || value.trim()
 }
 
-function compareText(a: string, b: string, mode: SortMode): number {
+export function compareText(a: string, b: string, mode: SortMode): number {
   if (mode === 'normal') {
     return a.trim().localeCompare(b.trim(), undefined, { sensitivity: 'base' })
   }

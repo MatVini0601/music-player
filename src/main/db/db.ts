@@ -45,6 +45,15 @@ function runMigrations(db: Database.Database): void {
     // column already exists
   }
 
+  // Same NULL-vs-empty convention as genre above, adapted for a numeric column: 0 means
+  // "confirmed no year tag" so those files aren't re-parsed on every future scan, while
+  // NULL means "not read since this column existed".
+  try {
+    db.exec('ALTER TABLE tracks ADD COLUMN year INTEGER')
+  } catch {
+    // column already exists
+  }
+
   // SQLite's ALTER TABLE ADD COLUMN rejects any non-constant default (including CURRENT_TIMESTAMP),
   // so the column is added nullable and backfilled in a separate, idempotent step.
   try {

@@ -18,8 +18,10 @@ import type { Track } from '../../shared/types'
 import type { RepeatMode } from '../hooks/usePlayer'
 import { usePlaybackTime } from '../hooks/usePlaybackTime'
 import { formatDuration } from '../utils/format'
+import { artistKey } from '../utils/artists'
 import { PopoverMenu } from './PopoverMenu'
 import { AudioOutputMenu } from './AudioOutputMenu'
+import { MarqueeText } from './MarqueeText'
 
 interface NowPlayingBarProps {
   track: Track | null
@@ -37,6 +39,8 @@ interface NowPlayingBarProps {
   onToggleShuffle: () => void
   onToggleRepeat: () => void
   onCoverClick: () => void
+  onSelectAlbum: (albumId: number) => void
+  onSelectArtist: (artistKey: string) => void
   onQueueClick: () => void
   isQueueOpen: boolean
   onLyricsClick: () => void
@@ -62,6 +66,8 @@ export function NowPlayingBar({
   onToggleShuffle,
   onToggleRepeat,
   onCoverClick,
+  onSelectAlbum,
+  onSelectArtist,
   onQueueClick,
   isQueueOpen,
   onLyricsClick,
@@ -85,8 +91,28 @@ export function NowPlayingBar({
           )}
         </button>
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{track?.title ?? 'Nothing playing'}</div>
-          <div className="truncate text-xs text-gray-500">{track?.artist ?? ''}</div>
+          {track?.albumId ? (
+            <button
+              onClick={() => onSelectAlbum(track.albumId as number)}
+              className="block w-full text-left hover:text-white"
+              title="Go to album"
+            >
+              <MarqueeText key={track.id} text={track.title} className="text-sm font-medium" />
+            </button>
+          ) : (
+            <div className="truncate text-sm font-medium">{track?.title ?? 'Nothing playing'}</div>
+          )}
+          {track?.albumArtist.trim() ? (
+            <button
+              onClick={() => onSelectArtist(artistKey(track.albumArtist))}
+              className="block w-full truncate text-left text-xs text-gray-500 hover:text-white hover:underline"
+              title="Go to artist"
+            >
+              {track.artist || track.albumArtist}
+            </button>
+          ) : (
+            <div className="truncate text-xs text-gray-500">{track?.artist ?? ''}</div>
+          )}
         </div>
       </div>
 

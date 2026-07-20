@@ -4,6 +4,13 @@
  * Versions without an entry simply show no popup.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '0.2.8': [
+    'Browse by artist: a new Artists tab lists everyone in your library — click one to see their albums.',
+    'Sort an artist’s albums alphabetically or by release year.',
+    'Click the song title in the player bar to jump to its album, or the artist name to jump to their artist page.',
+    'Long song titles now scroll in the player bar so you can read the whole thing.',
+    'Click an album name in any track list to jump straight to that album.'
+  ],
   '0.2.7': [
     'Fermata now appears in the Windows media overlay with its name, the song title, artist, cover art, and a progress bar — and your keyboard’s media keys control playback.',
     'Keyboard shortcuts: Space plays/pauses, arrows seek and change the volume, Ctrl+arrows switch tracks, plus keys for mute, shuffle, repeat, fullscreen, lyrics, and the queue.',

@@ -20,6 +20,7 @@ interface LibraryViewProps {
   onRescan: () => void
   onPlayQueue: (tracks: Track[], index: number) => void
   onTogglePlayPause: () => void
+  onSelectAlbum: (albumId: number) => void
   onAddToQueue: (track: Track) => void
   onOpenTrackEq: (track: Track) => void
   onAddTrackToExistingPlaylist: (playlistId: number, trackId: number) => void
@@ -48,6 +49,7 @@ export function LibraryView({
   onRescan,
   onPlayQueue,
   onTogglePlayPause,
+  onSelectAlbum,
   onAddToQueue,
   onOpenTrackEq,
   onAddTrackToExistingPlaylist,
@@ -185,6 +187,7 @@ export function LibraryView({
                         isPlaying={isPlaying}
                         onPlay={() => onPlayQueue(sortedTracks, sortedTracks.indexOf(track))}
                         onTogglePlayPause={onTogglePlayPause}
+                        onSelectAlbum={onSelectAlbum}
                         actions={
                           <LibraryTrackMenu
                             playlists={playlists}

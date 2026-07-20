@@ -7,6 +7,8 @@ export interface Track {
   artist: string
   album: string
   albumArtist: string
+  /** Null when the track has no album tag (no matching row in the albums table). */
+  albumId: number | null
   /** Comma-joined when the file has multiple genre tags; '' when the file has none. */
   genre: string
   trackNo: number | null
@@ -47,6 +49,17 @@ export interface Album {
   trackCount: number
   /** Distinct genres across the album's tracks, alphabetized; multi-genre tags are split. */
   genres: string[]
+  /** Release year from the first track (by track number) that has one; null if none do. */
+  year: number | null
+}
+
+export interface Artist {
+  /** Lowercased, trimmed album-artist name — the navigation/grouping key. */
+  key: string
+  name: string
+  albumCount: number
+  trackCount: number
+  artUrl: string | null
 }
 
 export interface LyricsLine {

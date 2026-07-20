@@ -16,6 +16,8 @@ interface ParsedTrack {
   album: string
   albumArtist: string
   genre: string
+  /** 0 = confirmed no year tag, a real year otherwise. Never null once parsed. */
+  year: number
   trackNo: number | null
   durationSeconds: number
   format: string
@@ -102,14 +104,15 @@ export async function scanLibrary(
   }
 
   const upsertTrack = db.prepare(`
-    INSERT INTO tracks (file_path, title, artist, album, album_artist, genre, track_no, duration_seconds, format, album_id, file_mtime_ms, last_scanned_at, added_at)
-    VALUES (@filePath, @title, @artist, @album, @albumArtist, @genre, @trackNo, @durationSeconds, @format, @albumId, @fileMtimeMs, datetime('now'), datetime('now'))
+    INSERT INTO tracks (file_path, title, artist, album, album_artist, genre, year, track_no, duration_seconds, format, album_id, file_mtime_ms, last_scanned_at, added_at)
+    VALUES (@filePath, @title, @artist, @album, @albumArtist, @genre, @year, @trackNo, @durationSeconds, @format, @albumId, @fileMtimeMs, datetime('now'), datetime('now'))
     ON CONFLICT(file_path) DO UPDATE SET
       title = excluded.title,
       artist = excluded.artist,
       album = excluded.album,
       album_artist = excluded.album_artist,
       genre = excluded.genre,
+      year = excluded.year,
       track_no = excluded.track_no,
       duration_seconds = excluded.duration_seconds,
       format = excluded.format,
@@ -119,7 +122,7 @@ export async function scanLibrary(
   `)
 
   const getExisting = db.prepare(
-    'SELECT id, file_mtime_ms, genre FROM tracks WHERE file_path = ?'
+    'SELECT id, file_mtime_ms, genre, year FROM tracks WHERE file_path = ?'
   )
 
   const upsertArt = db.prepare(`
@@ -143,6 +146,7 @@ export async function scanLibrary(
         album: item.album,
         albumArtist: item.albumArtist,
         genre: item.genre,
+        year: item.year,
         trackNo: item.trackNo,
         durationSeconds: item.durationSeconds,
         format: item.format,
@@ -196,11 +200,18 @@ export async function scanLibrary(
         const mtimeMs = Math.floor(fileStat.mtimeMs)
 
         const existing = getExisting.get(filePath) as
-          | { id: number; file_mtime_ms: number; genre: string | null }
+          | { id: number; file_mtime_ms: number; genre: string | null; year: number | null }
           | undefined
-        // genre === null means the track was scanned before the genre column existed;
+        // genre/year === null means the track was scanned before that column existed;
         // re-read its tags once even though the file itself hasn't changed.
-        if (!(existing && existing.file_mtime_ms === mtimeMs && existing.genre !== null)) {
+        if (
+          !(
+            existing &&
+            existing.file_mtime_ms === mtimeMs &&
+            existing.genre !== null &&
+            existing.year !== null
+          )
+        ) {
           const metadata = await parseFile(filePath)
           const common = metadata.common
 
@@ -213,6 +224,7 @@ export async function scanLibrary(
             album: common.album ?? '',
             albumArtist: common.albumartist ?? common.artist ?? '',
             genre: common.genre?.length ? common.genre.join(', ') : '',
+            year: common.year ?? 0,
             trackNo: common.track?.no ?? null,
             durationSeconds: metadata.format.duration ?? 0,
             format: extname(filePath).toLowerCase().slice(1),

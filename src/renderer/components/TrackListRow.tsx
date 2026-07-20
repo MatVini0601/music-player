@@ -11,6 +11,7 @@ interface TrackListRowProps {
   isPlaying: boolean
   onPlay: () => void
   onTogglePlayPause?: () => void
+  onSelectAlbum?: (albumId: number) => void
   actions: ReactNode
   draggable?: boolean
   isDragging?: boolean
@@ -27,6 +28,7 @@ export function TrackListRow({
   isPlaying,
   onPlay,
   onTogglePlayPause,
+  onSelectAlbum,
   actions,
   draggable = false,
   isDragging = false,
@@ -101,8 +103,20 @@ export function TrackListRow({
         {track.artist || 'Unknown artist'}
       </div>
 
-      <div className="col-start-4 row-start-1 min-w-0 truncate text-sm text-gray-500">
-        {track.album}
+      <div className="col-start-4 row-start-1 min-w-0 text-sm text-gray-500">
+        {onSelectAlbum && track.albumId ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectAlbum(track.albumId as number)
+            }}
+            className="block w-full truncate text-left hover:text-white hover:underline"
+          >
+            {track.album}
+          </button>
+        ) : (
+          <span className="block truncate">{track.album}</span>
+        )}
       </div>
 
       <div className="col-start-5 row-start-1 min-w-0 truncate text-sm text-gray-500">

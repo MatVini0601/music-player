@@ -93,6 +93,7 @@ export function HomeView({
                     isPlaying={isPlaying}
                     onPlay={() => onPlayQueue(recentTracks, index)}
                     onTogglePlayPause={onTogglePlayPause}
+                    onSelectAlbum={onSelectAlbum}
                     actions={
                       <TrackRowMenu>
                         {(close) => (

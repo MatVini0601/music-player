@@ -17,6 +17,7 @@ interface PlaylistViewProps {
   isPlaying: boolean
   onPlayQueue: (tracks: Track[], index: number) => void
   onTogglePlayPause: () => void
+  onSelectAlbum: (albumId: number) => void
   onAddToQueue: (track: Track) => void
   onOpenTrackEq: (track: Track) => void
   onSetDescription: (id: number, description: string) => void
@@ -29,6 +30,7 @@ export function PlaylistView({
   isPlaying,
   onPlayQueue,
   onTogglePlayPause,
+  onSelectAlbum,
   onAddToQueue,
   onOpenTrackEq,
   onSetDescription,
@@ -198,6 +200,7 @@ export function PlaylistView({
                     isPlaying={isPlaying}
                     onPlay={() => onPlayQueue(sortedTracks, sortedTracks.indexOf(track))}
                     onTogglePlayPause={onTogglePlayPause}
+                    onSelectAlbum={onSelectAlbum}
                     actions={
                       <TrackRowMenu>
                         {(close) => (

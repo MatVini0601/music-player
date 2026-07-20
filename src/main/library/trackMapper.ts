@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3'
 import { toMediaUrl } from '../mediaProtocol'
 import type { Album, Track } from '../../shared/types'
 
-export const TRACK_COLUMNS_SQL = `t.id, t.file_path, t.title, t.artist, t.album, t.album_artist, t.genre, t.track_no,
+export const TRACK_COLUMNS_SQL = `t.id, t.file_path, t.title, t.artist, t.album, t.album_artist, t.album_id, t.genre, t.track_no,
                 t.duration_seconds, t.format, t.user_art_path, t.added_at, ac.image_path, alb.user_art_path AS album_art_path`
 
 export const TRACK_JOINS_SQL = `LEFT JOIN art_cache ac ON ac.track_id = t.id
@@ -15,6 +15,7 @@ export interface TrackRow {
   artist: string
   album: string
   album_artist: string
+  album_id: number | null
   genre: string | null
   track_no: number | null
   duration_seconds: number
@@ -47,6 +48,13 @@ export function rowsToAlbums(db: Database, rows: AlbumRow[]): Album[] {
     `SELECT DISTINCT genre FROM tracks WHERE album_id = ? AND genre IS NOT NULL AND genre != ''`
   )
 
+  const getYear = db.prepare(
+    `SELECT year FROM tracks
+     WHERE album_id = ? AND year IS NOT NULL AND year != 0
+     ORDER BY track_no
+     LIMIT 1`
+  )
+
   return rows.map((r) => {
     const artPath =
       r.user_art_path ??
@@ -65,13 +73,16 @@ export function rowsToAlbums(db: Database, rows: AlbumRow[]): Album[] {
       }
     }
 
+    const year = (getYear.get(r.id) as { year: number } | undefined)?.year ?? null
+
     return {
       id: r.id,
       title: r.title,
       albumArtist: r.album_artist,
       trackCount: r.track_count,
       artUrl: artPath ? toMediaUrl(artPath) : null,
-      genres: [...genresByKey.values()].sort((a, b) => a.localeCompare(b))
+      genres: [...genresByKey.values()].sort((a, b) => a.localeCompare(b)),
+      year
     }
   })
 }
@@ -87,6 +98,7 @@ export function rowsToTracks(rows: TrackRow[]): Track[] {
       artist: r.artist,
       album: r.album,
       albumArtist: r.album_artist,
+      albumId: r.album_id,
       genre: r.genre ?? '',
       trackNo: r.track_no,
       durationSeconds: r.duration_seconds,

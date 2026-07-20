@@ -5,6 +5,7 @@ import {
   Disc3,
   Home,
   Library,
+  Mic2,
   Music,
   Plus,
   Settings,
@@ -18,6 +19,8 @@ export type SelectedView =
   | { type: 'library' }
   | { type: 'albums' }
   | { type: 'album'; id: number }
+  | { type: 'artists' }
+  | { type: 'artist'; id: string }
   | { type: 'playlist'; id: number }
   | { type: 'settings' }
 
@@ -128,6 +131,21 @@ export function Sidebar({
       >
         <Disc3 size={18} className="flex-shrink-0" />
         {!isCollapsed && 'Albums'}
+      </button>
+
+      <button
+        onClick={() => onSelectView({ type: 'artists' })}
+        title="Artists"
+        className={`mt-1 flex items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+          isCollapsed ? 'justify-center' : ''
+        } ${
+          selectedView.type === 'artists' || selectedView.type === 'artist'
+            ? 'bg-white/5 text-accent'
+            : 'text-gray-300 hover:bg-white/5'
+        }`}
+      >
+        <Mic2 size={18} className="flex-shrink-0" />
+        {!isCollapsed && 'Artists'}
       </button>
 
       <div className={`mt-4 flex items-center px-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
