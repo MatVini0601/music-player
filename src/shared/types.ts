@@ -132,6 +132,9 @@ export interface LibrarySort {
 /** How text columns alphabetize: as-is, or ignoring punctuation and a leading "The". */
 export type SortMode = 'normal' | 'ignoreSpecials'
 
+/** How an artist page's album grid orders its albums. */
+export type ArtistAlbumSort = 'alphabetical' | 'release'
+
 export type UpdateEvent =
   | { type: 'available'; version: string }
   | { type: 'upToDate' }
@@ -146,6 +149,8 @@ export interface LibraryApi {
   scanLibrary(): Promise<ScanResult>
   getTracks(): Promise<Track[]>
   onScanProgress(callback: (progress: ScanProgress) => void): () => void
+  /** Fires after the live library watcher rescans changed files and something actually changed. */
+  onLibraryChanged(callback: () => void): () => void
   listPlaylists(): Promise<Playlist[]>
   createPlaylist(name: string): Promise<Playlist>
   renamePlaylist(id: number, name: string): Promise<void>
@@ -175,6 +180,8 @@ export interface LibraryApi {
   setLibrarySort(sort: LibrarySort | null): Promise<void>
   getSortMode(): Promise<SortMode>
   setSortMode(mode: SortMode): Promise<void>
+  getArtistAlbumSort(): Promise<ArtistAlbumSort>
+  setArtistAlbumSort(sort: ArtistAlbumSort): Promise<void>
   /** Audio output device id; '' means the system default. */
   getAudioOutput(): Promise<string>
   setAudioOutput(deviceId: string): Promise<void>

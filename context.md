@@ -3,6 +3,40 @@ WHAT KIND OF PROJECT THIS IS?
 - The player will only be able do play from local files
 - [UPDATED 2026-07-17] Supported formats: MP3, FLAC, M4A, M4B, AAC, WAV, OGG, Opus, WebM (src/main/library/scanner.ts SUPPORTED_EXTENSIONS + src/main/mediaProtocol.ts MIME_TYPES). Limited to what Chromium's <audio> element decodes natively — no transcoding layer exists yet.
 
+LAYOUT AND SCREENS (reference, 2026-07-30)
+
+App shell (src/renderer/App.tsx): a fixed vertical stack — a horizontal row (Sidebar + main content + right-hand panels) on top, the Now Playing bar spanning full width underneath. Fullscreen Player, EQ modal, and popups render as overlays above everything else.
+
+Layout functionality (cross-cutting, not tied to one screen):
+- Sidebar (src/renderer/components/Sidebar.tsx): left nav rail. Home/Library/Albums/Artists buttons, a Playlists list (create inline, double-click to rename, hover-X to delete with a ConfirmModal), Settings + collapse toggle pinned at the bottom. Collapsible to an icon-only rail; collapsed state persisted via setSidebarCollapsed.
+- Tab vs. drill-down navigation: Home/Library/Albums/Artists/Settings/Playlist are "root" tabs — selecting one from the sidebar always starts fresh. Selecting an Album or Artist drills in from whatever tab is active and pushes onto a view-history stack, showing a "Back" button above the content; switching tabs discards that history.
+- Content area transitions: swaps screens by key-based remount with a fade-in; the Lyrics view takes over the same slot in place of the current tab rather than being a separate route.
+- Right-hand panels (Now Playing details / Queue): two slide-out drawers sharing one slot on the right edge (width/opacity transition, 0 → 320px); opening one closes the other. Toggled from icons in the Now Playing bar.
+- Now Playing bar (src/renderer/components/NowPlayingBar.tsx): persistent bottom bar — cover + marquee title/artist (title links to its album, artist links to its artist page) on the left, transport controls + seek bar centered, lyrics/queue/audio-output/volume/fullscreen controls on the right.
+- Fullscreen Player: full-viewport overlay (not part of the tab system), opened from the Now Playing bar, closable via Escape or an X button; has a slide-in side panel for raw track tags.
+- Detail-page "hero" header: Playlist and Artist screens share the same visual pattern — a blurred/scaled backdrop built from the cover art, a gradient fade into the background color, and a large cover (square for playlists, circular for artists) with title/stats beneath.
+- Scroll position persistence: Library, Albums, and Artists lists remember their scroll offset across tab switches for the session (module-level variable, restored via useLayoutEffect before paint).
+- Virtualization/capping for large libraries: Library's track list only mounts rows near the viewport; the Queue's "Up next" section caps at 200 rendered rows.
+- Modals/popups: ConfirmModal (destructive-action confirmation, portaled to document.body), TrackEqModal (per-track EQ override), UpdateModal (update available/downloaded), WhatsNewModal (post-update changelog) — all centered overlays on a dimmed backdrop, closable via Escape or backdrop click.
+- Theming: accent color (Settings) applied throughout; optional dominant-color background (extracted from the current track's/artist's art) tints Fullscreen Player and Lyrics view.
+
+Screens (main content area, one per sidebar tab or drill-down):
+1. Home (HomeView.tsx) — landing screen: "Recently played albums" (small grid card) and "Recently played" track list; empty state prompts the user to play something from Library.
+2. Library (LibraryView.tsx) — the full flat track list: search, sortable column header, add-folder/rescan controls, scan progress and failed-file warnings; per-track menu can queue, open EQ, or add to a playlist (existing or new).
+3. Albums (AlbumGridView.tsx) — grid of album covers with text search plus searchable genre and artist filter dropdowns (combinable); click opens the Album detail screen.
+4. Album detail (AlbumView.tsx) — header (cover, title, artist, cover menu) over that album's track list; per-track menu adds cover/EQ actions on top of the Library menu's options.
+5. Artists (ArtistGridView.tsx) — grid of circular artist avatars (derived client-side from albums) with search, alphabetized per the global sort-mode setting.
+6. Artist detail (ArtistView.tsx) — hero header (avatar, name, album/track counts) plus an Alphabetical/Release toggle over a grid of that artist's albums.
+7. Playlist detail (PlaylistView.tsx) — hero header with editable description and a play button, cover menu, search; track list supports drag-to-reorder (only when unsorted/unfiltered) and per-track removal.
+8. Settings (SettingsView.tsx) — one scrollable page, sectioned: Equalizer (10-band editor, export/import/reset), Audio output (device picker), Accent color, Display (dominant-color background toggle), Sorting (ignore specials/"The"), Keyboard shortcuts (rebindable list), Library folders (add/remove), About (version + check for updates).
+9. Lyrics (LyricsView.tsx) — replaces the content area in place: cover + title/artist on the left, scrolling lyrics on the right (synced lines auto-highlight and are click-to-seek); inline edit mode accepts plain or LRC-timestamped text.
+10. Fullscreen Player (FullscreenPlayer.tsx) — full-viewport now-playing view: large cover, transport controls, seek bar, optional slide-in track-tags panel.
+
+Secondary overlay UI (not full screens, but layout-significant):
+- Now Playing Panel (NowPlayingPanel.tsx) — right drawer with the current track's art and full tag list.
+- Queue Panel (QueuePanel.tsx) — right drawer: play history / now playing / up-next, click to jump, hover to remove.
+- TrackEqModal, ConfirmModal, UpdateModal, WhatsNewModal — centered dialogs described above.
+
 POINTS FOR UPGRADES
 
 1. Last.fm integration

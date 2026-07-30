@@ -11,6 +11,7 @@ export function useAlbums() {
 
   useEffect(() => {
     refresh()
+    return window.api.onLibraryChanged(refresh)
   }, [refresh])
 
   return { albums, refresh }

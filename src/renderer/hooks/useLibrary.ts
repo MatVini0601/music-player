@@ -22,8 +22,14 @@ export function useLibrary() {
     refreshRoots()
     refreshTracks()
 
-    const unsubscribe = window.api.onScanProgress(setScanProgress)
-    return unsubscribe
+    const unsubscribeProgress = window.api.onScanProgress(setScanProgress)
+    const unsubscribeChanged = window.api.onLibraryChanged(() => {
+      refreshTracks()
+    })
+    return () => {
+      unsubscribeProgress()
+      unsubscribeChanged()
+    }
   }, [refreshRoots, refreshTracks])
 
   const runScan = useCallback(async () => {

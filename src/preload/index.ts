@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { EqBand, LibraryApi, LibrarySort, ScanProgress, SortMode, UpdateEvent } from '../shared/types'
+import type {
+  ArtistAlbumSort,
+  EqBand,
+  LibraryApi,
+  LibrarySort,
+  ScanProgress,
+  SortMode,
+  UpdateEvent
+} from '../shared/types'
 import type { ShortcutMap } from '../shared/shortcuts'
 
 const api: LibraryApi = {
@@ -13,6 +21,11 @@ const api: LibraryApi = {
       callback(progress)
     ipcRenderer.on('library:scanProgress', listener)
     return () => ipcRenderer.removeListener('library:scanProgress', listener)
+  },
+  onLibraryChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('library:changed', listener)
+    return () => ipcRenderer.removeListener('library:changed', listener)
   },
   listPlaylists: () => ipcRenderer.invoke('playlist:list'),
   createPlaylist: (name: string) => ipcRenderer.invoke('playlist:create', name),
@@ -50,6 +63,9 @@ const api: LibraryApi = {
   setLibrarySort: (sort: LibrarySort | null) => ipcRenderer.invoke('settings:setLibrarySort', sort),
   getSortMode: () => ipcRenderer.invoke('settings:getSortMode'),
   setSortMode: (mode: SortMode) => ipcRenderer.invoke('settings:setSortMode', mode),
+  getArtistAlbumSort: () => ipcRenderer.invoke('settings:getArtistAlbumSort'),
+  setArtistAlbumSort: (sort: ArtistAlbumSort) =>
+    ipcRenderer.invoke('settings:setArtistAlbumSort', sort),
   getAudioOutput: () => ipcRenderer.invoke('settings:getAudioOutput'),
   setAudioOutput: (deviceId: string) => ipcRenderer.invoke('settings:setAudioOutput', deviceId),
   getShortcuts: () => ipcRenderer.invoke('settings:getShortcuts'),

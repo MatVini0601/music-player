@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import type { Album, Artist, SortMode } from '../../shared/types'
+import { useMemo } from 'react'
+import type { Album, Artist, ArtistAlbumSort, SortMode } from '../../shared/types'
 import { compareText } from '../hooks/useTrackSort'
 import { artistKey } from '../utils/artists'
+import { useArtistAlbumSort } from '../hooks/useArtistAlbumSort'
 
 interface ArtistViewProps {
   artist: Artist
@@ -10,15 +11,13 @@ interface ArtistViewProps {
   onSelectAlbum: (albumId: number) => void
 }
 
-type AlbumSort = 'alphabetical' | 'release'
-
-const ALBUM_SORT_OPTIONS: { value: AlbumSort; label: string }[] = [
+const ALBUM_SORT_OPTIONS: { value: ArtistAlbumSort; label: string }[] = [
   { value: 'alphabetical', label: 'Alphabetical' },
   { value: 'release', label: 'Release' }
 ]
 
 export function ArtistView({ artist, albums, sortMode, onSelectAlbum }: ArtistViewProps) {
-  const [albumSort, setAlbumSort] = useState<AlbumSort>('alphabetical')
+  const { albumSort, setAlbumSort } = useArtistAlbumSort()
 
   const artistAlbums = useMemo(
     () => albums.filter((a) => artistKey(a.albumArtist) === artist.key),

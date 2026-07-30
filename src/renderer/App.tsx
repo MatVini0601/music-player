@@ -30,10 +30,32 @@ import { FullscreenPlayer } from './components/FullscreenPlayer'
 import { SettingsView } from './components/SettingsView'
 import { TrackEqModal } from './components/TrackEqModal'
 import { Sidebar, type SelectedView } from './components/Sidebar'
+import { ArrowLeft } from 'lucide-react'
 import type { Track } from '../shared/types'
 
 const SEEK_STEP_SECONDS = 5
 const VOLUME_STEP = 0.05
+
+function sameView(a: SelectedView, b: SelectedView): boolean {
+  if (a.type !== b.type) return false
+  return 'id' in a && 'id' in b ? a.id === b.id : true
+}
+
+// Sidebar entries (tabs) — navigating to one of these always starts that tab fresh at its
+// root. Only 'album'/'artist' are reached by drilling into a tab's content, so those are
+// the only views that push onto the back-history; switching tabs discards it.
+const ROOT_VIEW_TYPES: SelectedView['type'][] = [
+  'home',
+  'library',
+  'albums',
+  'artists',
+  'settings',
+  'playlist'
+]
+
+function isRootView(view: SelectedView): boolean {
+  return (ROOT_VIEW_TYPES as string[]).includes(view.type)
+}
 
 export default function App() {
   const {
@@ -59,6 +81,7 @@ export default function App() {
   const { shortcuts, setShortcut, resetShortcuts } = useShortcutBindings()
   const updates = useAppUpdates()
   const [selectedView, setSelectedView] = useState<SelectedView>({ type: 'home' })
+  const [viewHistory, setViewHistory] = useState<SelectedView[]>([])
   const [rightPanel, setRightPanel] = useState<'nowPlaying' | 'queue' | null>(null)
   const [isLyricsViewOpen, setIsLyricsViewOpen] = useState(false)
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
@@ -119,10 +142,23 @@ export default function App() {
     toggleQueue: () => toggleRightPanel('queue')
   })
 
-  const handleSelectView = (view: SelectedView): void => {
+  const navigate = (view: SelectedView): void => {
+    if (sameView(selectedView, view)) return
     setIsLyricsViewOpen(false)
+    // A tab switch (sidebar click) always starts that tab fresh and drops any drill-down
+    // history from whatever tab was active before — history never crosses between tabs.
+    setViewHistory(isRootView(view) ? [] : (h) => [...h, selectedView])
     setSelectedView(view)
   }
+
+  const goBack = (): void => {
+    if (viewHistory.length === 0) return
+    setIsLyricsViewOpen(false)
+    setSelectedView(viewHistory[viewHistory.length - 1])
+    setViewHistory((h) => h.slice(0, -1))
+  }
+
+  const canGoBack = viewHistory.length > 0
 
   const scanLabel = scanProgress
     ? `Scanning ${scanProgress.scanned}/${scanProgress.total}…`
@@ -131,7 +167,7 @@ export default function App() {
   const handleDeletePlaylist = async (id: number): Promise<void> => {
     await deletePlaylist(id)
     if (selectedView.type === 'playlist' && selectedView.id === id) {
-      setSelectedView({ type: 'library' })
+      navigate({ type: 'library' })
     }
   }
 
@@ -179,7 +215,7 @@ export default function App() {
           recentTracks={recentTracks}
           currentTrack={player.currentTrack}
           isPlaying={player.isPlaying}
-          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+          onSelectAlbum={(id) => navigate({ type: 'album', id })}
           onPlayQueue={player.playQueue}
           onTogglePlayPause={player.togglePlayPause}
           onAddToQueue={player.addToQueue}
@@ -225,7 +261,7 @@ export default function App() {
           isPlaying={player.isPlaying}
           onPlayQueue={player.playQueue}
           onTogglePlayPause={player.togglePlayPause}
-          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+          onSelectAlbum={(id) => navigate({ type: 'album', id })}
           onAddToQueue={player.addToQueue}
           onOpenTrackEq={setEqTrack}
           onSetDescription={setPlaylistDescription}
@@ -238,7 +274,7 @@ export default function App() {
       return (
         <AlbumGridView
           albums={albums}
-          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+          onSelectAlbum={(id) => navigate({ type: 'album', id })}
         />
       )
     }
@@ -248,7 +284,7 @@ export default function App() {
         <ArtistGridView
           artists={artists}
           sortMode={sortMode}
-          onSelectArtist={(key) => setSelectedView({ type: 'artist', id: key })}
+          onSelectArtist={(key) => navigate({ type: 'artist', id: key })}
         />
       )
     }
@@ -259,7 +295,7 @@ export default function App() {
           artist={selectedArtist}
           albums={albums}
           sortMode={sortMode}
-          onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+          onSelectAlbum={(id) => navigate({ type: 'album', id })}
         />
       )
     }
@@ -293,7 +329,7 @@ export default function App() {
         onRescan={handleRescan}
         onPlayQueue={player.playQueue}
         onTogglePlayPause={player.togglePlayPause}
-        onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
+        onSelectAlbum={(id) => navigate({ type: 'album', id })}
         onAddToQueue={player.addToQueue}
         onOpenTrackEq={setEqTrack}
         onAddTrackToExistingPlaylist={handleAddToExistingPlaylist}
@@ -308,7 +344,7 @@ export default function App() {
         <Sidebar
           playlists={playlists}
           selectedView={selectedView}
-          onSelectView={handleSelectView}
+          onSelectView={navigate}
           onCreatePlaylist={createPlaylist}
           onRenamePlaylist={renamePlaylist}
           onDeletePlaylist={handleDeletePlaylist}
@@ -325,17 +361,30 @@ export default function App() {
                 ? selectedView.type
                 : `${selectedView.type}-${selectedView.id}`
           }
-          className="flex-1 animate-fade-in overflow-hidden"
+          className="flex flex-1 flex-col animate-fade-in overflow-hidden"
         >
-          {isLyricsViewOpen ? (
-            <LyricsView
-              track={player.currentTrack}
-              dominantColorBg={dominantColorBg}
-              onSeek={player.seek}
-            />
-          ) : (
-            renderContent()
+          {!isLyricsViewOpen && canGoBack && (
+            <div className="flex flex-shrink-0 items-center border-b border-white/5 px-4 py-2">
+              <button
+                onClick={goBack}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <ArrowLeft size={14} />
+                Back
+              </button>
+            </div>
           )}
+          <div className="flex-1 overflow-hidden">
+            {isLyricsViewOpen ? (
+              <LyricsView
+                track={player.currentTrack}
+                dominantColorBg={dominantColorBg}
+                onSeek={player.seek}
+              />
+            ) : (
+              renderContent()
+            )}
+          </div>
         </div>
         <NowPlayingPanel
           track={player.currentTrack}
@@ -369,8 +418,8 @@ export default function App() {
         onToggleShuffle={player.toggleShuffle}
         onToggleRepeat={player.toggleRepeat}
         onCoverClick={() => toggleRightPanel('nowPlaying')}
-        onSelectAlbum={(id) => setSelectedView({ type: 'album', id })}
-        onSelectArtist={(key) => setSelectedView({ type: 'artist', id: key })}
+        onSelectAlbum={(id) => navigate({ type: 'album', id })}
+        onSelectArtist={(key) => navigate({ type: 'artist', id: key })}
         onQueueClick={() => toggleRightPanel('queue')}
         isQueueOpen={rightPanel === 'queue'}
         onLyricsClick={() => setIsLyricsViewOpen((v) => !v)}

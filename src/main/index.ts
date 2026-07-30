@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerUpdateHandlers, checkForUpdatesOnStartup } from './updates'
 import { getDb } from './db/db'
-import { scanLibrary } from './library/scanner'
+import { scanLibrary, deleteOrphanedAlbums } from './library/scanner'
+import { createLibraryWatcher, type LibraryWatcher } from './library/watcher'
 import { rowsToTracks, TRACK_COLUMNS_SQL, TRACK_JOINS_SQL, type TrackRow } from './library/trackMapper'
 import { registerPlaylistHandlers } from './library/playlists'
 import { registerArtworkHandlers } from './library/artwork'
@@ -12,7 +13,14 @@ import { registerMetadataHandlers } from './library/metadata'
 import { registerHistoryHandlers } from './library/history'
 import { registerEqTransferHandlers } from './library/eqTransfer'
 import { registerMediaProtocolPrivileges, registerMediaProtocolHandler } from './mediaProtocol'
-import type { EqBand, LibrarySort, SortMode, Track, ScanResult } from '../shared/types'
+import type {
+  ArtistAlbumSort,
+  EqBand,
+  LibrarySort,
+  SortMode,
+  Track,
+  ScanResult
+} from '../shared/types'
 import { DEFAULT_SHORTCUTS, SHORTCUT_ACTIONS, type ShortcutMap } from '../shared/shortcuts'
 
 // The default userData path is derived from productName ("Fermata"), but existing installs
@@ -36,6 +44,7 @@ app.setAppUserModelId('com.electron.music-player')
 registerMediaProtocolPrivileges()
 
 let mainWindow: BrowserWindow | null = null
+let libraryWatcher: LibraryWatcher | null = null
 
 /**
  * The window icon feeds the title bar (its 16px slot) and the running-window taskbar
@@ -84,6 +93,13 @@ function createWindow(): void {
 function registerIpcHandlers(): void {
   const db = getDb()
 
+  libraryWatcher = createLibraryWatcher(db, () => {
+    mainWindow?.webContents.send('library:changed')
+  })
+  const existingRoots = (db.prepare('SELECT path FROM library_roots').all() as { path: string }[])
+    .map((r) => r.path)
+  for (const root of existingRoots) libraryWatcher.addRoot(root)
+
   ipcMain.handle('library:pickFolder', async () => {
     if (!mainWindow) return null
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -93,6 +109,7 @@ function registerIpcHandlers(): void {
 
     const folderPath = result.filePaths[0]
     db.prepare('INSERT OR IGNORE INTO library_roots (path) VALUES (?)').run(folderPath)
+    libraryWatcher?.addRoot(folderPath)
     return folderPath
   })
 
@@ -103,6 +120,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('library:removeLibraryRoot', (_event, folderPath: string): void => {
     db.prepare('DELETE FROM library_roots WHERE path = ?').run(folderPath)
+    libraryWatcher?.removeRoot(folderPath)
 
     // Remove that folder's tracks: their files still exist on disk, so the scanner's
     // missing-file cleanup would never drop them. substr() instead of LIKE because
@@ -110,10 +128,7 @@ function registerIpcHandlers(): void {
     const prefix = folderPath.replace(/[\\/]+$/, '') + '\\'
     db.prepare('DELETE FROM tracks WHERE substr(file_path, 1, ?) = ?').run(prefix.length, prefix)
 
-    db.prepare(
-      `DELETE FROM albums
-       WHERE id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
-    ).run()
+    deleteOrphanedAlbums(db)
   })
 
   ipcMain.handle('library:scanLibrary', async (): Promise<ScanResult> => {
@@ -244,6 +259,17 @@ function registerIpcHandlers(): void {
     },
     toStored: (mode) => mode,
     fallback: () => 'ignoreSpecials'
+  })
+
+  registerSetting<ArtistAlbumSort>('ArtistAlbumSort', 'artistAlbumSort', {
+    fromStored: (stored) => {
+      if (stored !== 'alphabetical' && stored !== 'release') {
+        throw new Error('invalid artist album sort')
+      }
+      return stored
+    },
+    toStored: (sort) => sort,
+    fallback: () => 'alphabetical'
   })
 
   registerSetting<string>('AudioOutput', 'audioOutput', {

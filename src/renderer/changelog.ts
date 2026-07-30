@@ -4,6 +4,11 @@
  * Versions without an entry simply show no popup.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '0.2.9': [
+    'The library now updates itself: adding, editing, or deleting files in a watched folder is picked up automatically, no rescan needed.',
+    'A "Back" button appears when you drill into an album or artist, so you can return to exactly where you were.',
+    'An artist page’s Alphabetical/Release sort choice is now remembered between sessions.'
+  ],
   '0.2.8': [
     'Browse by artist: a new Artists tab lists everyone in your library — click one to see their albums.',
     'Sort an artist’s albums alphabetically or by release year.',

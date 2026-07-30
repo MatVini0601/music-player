@@ -24,6 +24,8 @@ interface ParsedTrack {
   picture: IPicture | undefined
 }
 
+type ParseFileFn = Awaited<ReturnType<typeof getMusicMetadata>>['parseFile']
+
 /** How many parsed files get written per transaction. Parsing (the slow, async part) stays
  *  outside the transaction so IPC writes from the rest of the app can't interleave into it. */
 const SCAN_CHUNK_SIZE = 50
@@ -38,7 +40,7 @@ const PROGRESS_INTERVAL_MS = 250
 
 // Limited to formats Chromium's <audio> element can actually decode natively — this app
 // has no transcoding layer, so anything else would scan into the library but fail to play.
-const SUPPORTED_EXTENSIONS = new Set([
+export const SUPPORTED_EXTENSIONS = new Set([
   '.mp3',
   '.flac',
   '.m4a',
@@ -90,19 +92,23 @@ function findOrCreateAlbum(db: Database, title: string, albumArtist: string): nu
   return Number(result.lastInsertRowid)
 }
 
-export async function scanLibrary(
-  db: Database,
-  rootPaths: string[],
-  onProgress: (progress: ScanProgress) => void
-): Promise<ScanResult> {
-  const unreadableDirs: string[] = []
-  const failedFiles: string[] = []
+/** Albums left with no tracks (e.g. a file's album/album-artist tag changed between scans,
+ *  moving it to a different album row, or its last track was removed) are orphaned and
+ *  would otherwise linger forever. */
+export function deleteOrphanedAlbums(db: Database): void {
+  db.prepare(
+    `DELETE FROM albums
+     WHERE id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
+  ).run()
+}
 
-  const allFiles: string[] = []
-  for (const root of rootPaths) {
-    allFiles.push(...(await walk(root, unreadableDirs)))
-  }
-
+/** Shared tag-parsing and DB-write logic used by both a full library scan and a targeted
+ *  rescan of a handful of paths (e.g. from the live filesystem watcher). */
+function createTrackWriter(db: Database): {
+  parseOne(filePath: string, parseFile: ParseFileFn): Promise<ParsedTrack | null>
+  writeBatch(items: ParsedTrack[]): void
+  removeByPath(filePath: string): boolean
+} {
   const upsertTrack = db.prepare(`
     INSERT INTO tracks (file_path, title, artist, album, album_artist, genre, year, track_no, duration_seconds, format, album_id, file_mtime_ms, last_scanned_at, added_at)
     VALUES (@filePath, @title, @artist, @album, @albumArtist, @genre, @year, @trackNo, @durationSeconds, @format, @albumId, @fileMtimeMs, datetime('now'), datetime('now'))
@@ -130,13 +136,9 @@ export async function scanLibrary(
   `)
 
   const clearArtForTrack = db.prepare('DELETE FROM art_cache WHERE track_id = ?')
+  const deleteTrackByPath = db.prepare('DELETE FROM tracks WHERE file_path = ?')
 
-  let addedOrUpdated = 0
-  const pending: ParsedTrack[] = []
-
-  // The whole chunk lands in one transaction instead of one implicit transaction per
-  // statement — the difference between minutes and seconds on a large first scan.
-  const writeChunk = db.transaction((items: ParsedTrack[]) => {
+  const writeBatch = db.transaction((items: ParsedTrack[]) => {
     for (const item of items) {
       const albumId = findOrCreateAlbum(db, item.album, item.albumArtist)
       const result = upsertTrack.run({
@@ -162,11 +164,113 @@ export async function scanLibrary(
     }
   })
 
+  async function parseOne(filePath: string, parseFile: ParseFileFn): Promise<ParsedTrack | null> {
+    const fileStat = await stat(filePath)
+    const mtimeMs = Math.floor(fileStat.mtimeMs)
+
+    const existing = getExisting.get(filePath) as
+      | { id: number; file_mtime_ms: number; genre: string | null; year: number | null }
+      | undefined
+
+    // genre/year === null means the track was scanned before that column existed;
+    // re-read its tags once even though the file itself hasn't changed.
+    if (
+      existing &&
+      existing.file_mtime_ms === mtimeMs &&
+      existing.genre !== null &&
+      existing.year !== null
+    ) {
+      return null
+    }
+
+    const metadata = await parseFile(filePath)
+    const common = metadata.common
+
+    return {
+      filePath,
+      existingId: existing?.id ?? null,
+      mtimeMs,
+      title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
+      artist: common.artist ?? '',
+      album: common.album ?? '',
+      albumArtist: common.albumartist ?? common.artist ?? '',
+      genre: common.genre?.length ? common.genre.join(', ') : '',
+      year: common.year ?? 0,
+      trackNo: common.track?.no ?? null,
+      durationSeconds: metadata.format.duration ?? 0,
+      format: extname(filePath).toLowerCase().slice(1),
+      picture: common.picture?.[0]
+    }
+  }
+
+  function removeByPath(filePath: string): boolean {
+    return deleteTrackByPath.run(filePath).changes > 0
+  }
+
+  return { parseOne, writeBatch, removeByPath }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
+
+/** Rescans a small, explicit set of paths (e.g. changed files reported by the live library
+ *  watcher) — no directory walk and no whole-library missing-file sweep, so its cost is
+ *  proportional to the batch size, not the library size. */
+export async function scanPaths(
+  db: Database,
+  paths: string[]
+): Promise<{ upserted: number; removed: number }> {
+  if (paths.length === 0) return { upserted: 0, removed: 0 }
+
+  const writer = createTrackWriter(db)
+  const { parseFile } = await getMusicMetadata()
+
+  const items: ParsedTrack[] = []
+  let removed = 0
+
+  for (const filePath of paths) {
+    try {
+      const item = await writer.parseOne(filePath, parseFile)
+      if (item) items.push(item)
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        if (writer.removeByPath(filePath)) removed++
+      } else {
+        console.warn(`Watcher: failed to process ${filePath}:`, error)
+      }
+    }
+  }
+
+  if (items.length > 0) writer.writeBatch(items)
+  if (removed > 0) deleteOrphanedAlbums(db)
+
+  return { upserted: items.length, removed }
+}
+
+export async function scanLibrary(
+  db: Database,
+  rootPaths: string[],
+  onProgress: (progress: ScanProgress) => void
+): Promise<ScanResult> {
+  const unreadableDirs: string[] = []
+  const failedFiles: string[] = []
+
+  const allFiles: string[] = []
+  for (const root of rootPaths) {
+    allFiles.push(...(await walk(root, unreadableDirs)))
+  }
+
+  const writer = createTrackWriter(db)
+
+  let addedOrUpdated = 0
+  const pending: ParsedTrack[] = []
+
   const flushPending = (): void => {
     if (pending.length === 0) return
     const items = pending.splice(0, pending.length)
     try {
-      writeChunk(items)
+      writer.writeBatch(items)
       addedOrUpdated += items.length
     } catch (error) {
       console.warn('Scan: failed to write chunk to database:', error)
@@ -196,40 +300,9 @@ export async function scanLibrary(
       // A single unreadable or corrupt file must not abort the whole scan — skip it and
       // report it in the result instead.
       try {
-        const fileStat = await stat(filePath)
-        const mtimeMs = Math.floor(fileStat.mtimeMs)
-
-        const existing = getExisting.get(filePath) as
-          | { id: number; file_mtime_ms: number; genre: string | null; year: number | null }
-          | undefined
-        // genre/year === null means the track was scanned before that column existed;
-        // re-read its tags once even though the file itself hasn't changed.
-        if (
-          !(
-            existing &&
-            existing.file_mtime_ms === mtimeMs &&
-            existing.genre !== null &&
-            existing.year !== null
-          )
-        ) {
-          const metadata = await parseFile(filePath)
-          const common = metadata.common
-
-          pending.push({
-            filePath,
-            existingId: existing?.id ?? null,
-            mtimeMs,
-            title: common.title ?? filePath.split(/[\\/]/).pop() ?? filePath,
-            artist: common.artist ?? '',
-            album: common.album ?? '',
-            albumArtist: common.albumartist ?? common.artist ?? '',
-            genre: common.genre?.length ? common.genre.join(', ') : '',
-            year: common.year ?? 0,
-            trackNo: common.track?.no ?? null,
-            durationSeconds: metadata.format.duration ?? 0,
-            format: extname(filePath).toLowerCase().slice(1),
-            picture: common.picture?.[0]
-          })
+        const item = await writer.parseOne(filePath, parseFile)
+        if (item) {
+          pending.push(item)
           if (pending.length >= SCAN_CHUNK_SIZE) flushPending()
         }
       } catch (error) {
@@ -279,12 +352,7 @@ export async function scanLibrary(
   if (missingIds.length > 0) deleteMissing(missingIds)
   const removed = missingIds.length
 
-  // Albums left with no tracks (e.g. a file's album/album-artist tag changed between scans,
-  // moving it to a different album row) are orphaned and would otherwise linger forever.
-  db.prepare(
-    `DELETE FROM albums
-     WHERE id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
-  ).run()
+  deleteOrphanedAlbums(db)
 
   const totalTracks = (
     db.prepare('SELECT COUNT(*) as count FROM tracks').get() as { count: number }
