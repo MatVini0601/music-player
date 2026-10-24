@@ -433,10 +433,19 @@ export default function App() {
           track={player.currentTrack}
           isPlaying={player.isPlaying}
           duration={player.duration}
+          volume={player.volume}
+          isShuffle={player.isShuffle}
+          repeatMode={player.repeatMode}
           onTogglePlayPause={player.togglePlayPause}
           onSeek={player.seek}
+          onVolumeChange={player.setVolume}
+          onToggleMute={player.toggleMute}
           onNext={player.next}
           onPrevious={player.previous}
+          onToggleShuffle={player.toggleShuffle}
+          onToggleRepeat={player.toggleRepeat}
+          audioOutputId={player.audioOutputId}
+          onChangeAudioOutput={player.setAudioOutput}
           onClose={() => setIsFullscreenOpen(false)}
           dominantColorBg={dominantColorBg}
         />

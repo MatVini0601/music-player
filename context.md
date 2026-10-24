@@ -30,7 +30,7 @@ Screens (main content area, one per sidebar tab or drill-down):
 7. Playlist detail (PlaylistView.tsx) — hero header with editable description and a play button, cover menu, search; track list supports drag-to-reorder (only when unsorted/unfiltered) and per-track removal.
 8. Settings (SettingsView.tsx) — one scrollable page, sectioned: Equalizer (10-band editor, export/import/reset), Audio output (device picker), Accent color, Display (dominant-color background toggle), Sorting (ignore specials/"The"), Keyboard shortcuts (rebindable list), Library folders (add/remove), About (version + check for updates).
 9. Lyrics (LyricsView.tsx) — replaces the content area in place: cover + title/artist on the left, scrolling lyrics on the right (synced lines auto-highlight and are click-to-seek); inline edit mode accepts plain or LRC-timestamped text.
-10. Fullscreen Player (FullscreenPlayer.tsx) — full-viewport now-playing view: large cover, transport controls, seek bar, optional slide-in track-tags panel.
+10. Fullscreen Player (FullscreenPlayer.tsx) — full-viewport now-playing view: large cover, transport controls (shuffle/prev/play/next/repeat), seek bar, audio output + mute + volume (same as the Now Playing bar; lyrics/queue left out since their panels sit under the overlay), optional slide-in track-tags panel.
 
 Secondary overlay UI (not full screens, but layout-significant):
 - Now Playing Panel (NowPlayingPanel.tsx) — right drawer with the current track's art and full tag list.

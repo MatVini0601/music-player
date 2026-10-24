@@ -4,6 +4,9 @@
  * Versions without an entry simply show no popup.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '0.2.10': [
+    'The fullscreen player now has every control: shuffle, repeat, volume, mute, and the audio output picker.'
+  ],
   '0.2.9': [
     'The library now updates itself: adding, editing, or deleting files in a watched folder is picked up automatically, no rescan needed.',
     'A "Back" button appears when you drill into an album or artist, so you can return to exactly where you were.',

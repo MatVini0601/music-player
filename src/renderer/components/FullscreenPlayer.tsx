@@ -1,19 +1,45 @@
 import { useEffect, useState } from 'react'
-import { Info, Pause, Play, SkipBack, SkipForward, X } from 'lucide-react'
+import {
+  Info,
+  MonitorSpeaker,
+  Pause,
+  Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
+  X
+} from 'lucide-react'
 import type { Track, TrackMetadata } from '../../shared/types'
+import type { RepeatMode } from '../hooks/usePlayer'
 import { useDominantColor } from '../hooks/useDominantColor'
 import { usePlaybackTime } from '../hooks/usePlaybackTime'
 import { formatDuration } from '../utils/format'
 import { TrackTagsList } from './TrackTagsList'
+import { PopoverMenu } from './PopoverMenu'
+import { AudioOutputMenu } from './AudioOutputMenu'
 
 interface FullscreenPlayerProps {
   track: Track | null
   isPlaying: boolean
   duration: number
+  volume: number
+  isShuffle: boolean
+  repeatMode: RepeatMode
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
+  onVolumeChange: (volume: number) => void
+  onToggleMute: () => void
   onNext: () => void
   onPrevious: () => void
+  onToggleShuffle: () => void
+  onToggleRepeat: () => void
+  audioOutputId: string
+  onChangeAudioOutput: (deviceId: string) => void
   onClose: () => void
   dominantColorBg: boolean
 }
@@ -22,10 +48,19 @@ export function FullscreenPlayer({
   track,
   isPlaying,
   duration,
+  volume,
+  isShuffle,
+  repeatMode,
   onTogglePlayPause,
   onSeek,
+  onVolumeChange,
+  onToggleMute,
   onNext,
   onPrevious,
+  onToggleShuffle,
+  onToggleRepeat,
+  audioOutputId,
+  onChangeAudioOutput,
   onClose,
   dominantColorBg
 }: FullscreenPlayerProps) {
@@ -105,35 +140,116 @@ export function FullscreenPlayer({
             <span className="w-10">{formatDuration(duration)}</span>
           </div>
 
-          <div className="mt-4 flex items-center justify-center gap-8">
-            <button
-              onClick={onPrevious}
-              disabled={!track}
-              className="text-gray-300 transition-colors hover:text-white disabled:opacity-30"
-              aria-label="Previous"
-            >
-              <SkipBack size={22} fill="currentColor" />
-            </button>
-            <button
-              onClick={onTogglePlayPause}
-              disabled={!track}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? (
-                <Pause size={22} fill="currentColor" />
-              ) : (
-                <Play size={22} fill="currentColor" className="ml-0.5" />
-              )}
-            </button>
-            <button
-              onClick={onNext}
-              disabled={!track}
-              className="text-gray-300 transition-colors hover:text-white disabled:opacity-30"
-              aria-label="Next"
-            >
-              <SkipForward size={22} fill="currentColor" />
-            </button>
+          <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-8">
+            <div />
+            <div className="flex items-center gap-8">
+              <button
+                onClick={onToggleShuffle}
+                disabled={!track}
+                title={isShuffle ? 'Disable shuffle' : 'Enable shuffle'}
+                aria-label={isShuffle ? 'Disable shuffle' : 'Enable shuffle'}
+                className={`transition-colors disabled:opacity-30 ${
+                  isShuffle ? 'text-accent' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Shuffle size={20} />
+              </button>
+              <button
+                onClick={onPrevious}
+                disabled={!track}
+                className="text-gray-300 transition-colors hover:text-white disabled:opacity-30"
+                aria-label="Previous"
+              >
+                <SkipBack size={22} fill="currentColor" />
+              </button>
+              <button
+                onClick={onTogglePlayPause}
+                disabled={!track}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause size={22} fill="currentColor" />
+                ) : (
+                  <Play size={22} fill="currentColor" className="ml-0.5" />
+                )}
+              </button>
+              <button
+                onClick={onNext}
+                disabled={!track}
+                className="text-gray-300 transition-colors hover:text-white disabled:opacity-30"
+                aria-label="Next"
+              >
+                <SkipForward size={22} fill="currentColor" />
+              </button>
+              <button
+                onClick={onToggleRepeat}
+                disabled={!track}
+                title={
+                  repeatMode === 'off'
+                    ? 'Repeat all'
+                    : repeatMode === 'all'
+                      ? 'Repeat one'
+                      : 'Disable repeat'
+                }
+                aria-label="Cycle repeat mode"
+                className={`transition-colors disabled:opacity-30 ${
+                  repeatMode !== 'off' ? 'text-accent' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {repeatMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
+              </button>
+            </div>
+
+            <div className="flex min-w-0 items-center justify-end gap-3">
+              <PopoverMenu
+                width={256}
+                direction="up"
+                trigger={({ onClick }) => (
+                  <button
+                    onClick={onClick}
+                    title="Audio output"
+                    aria-label="Choose audio output device"
+                    className={`flex-shrink-0 transition-colors ${
+                      audioOutputId ? 'text-accent' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <MonitorSpeaker size={20} />
+                  </button>
+                )}
+              >
+                {(close) => (
+                  <AudioOutputMenu
+                    audioOutputId={audioOutputId}
+                    onChange={onChangeAudioOutput}
+                    close={close}
+                  />
+                )}
+              </PopoverMenu>
+              <button
+                onClick={onToggleMute}
+                title={volume === 0 ? 'Unmute' : 'Mute'}
+                aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+                className="flex-shrink-0 text-gray-400 transition-colors hover:text-white"
+              >
+                {volume === 0 ? (
+                  <VolumeX size={20} />
+                ) : volume < 0.5 ? (
+                  <Volume1 size={20} />
+                ) : (
+                  <Volume2 size={20} />
+                )}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => onVolumeChange(Number(e.target.value))}
+                className="h-1 w-32 min-w-0 accent-accent"
+              />
+            </div>
           </div>
         </div>
 
